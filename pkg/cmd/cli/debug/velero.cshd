@@ -1,0 +1,25 @@
+def capture_backup_logs():
+    if args.backup:
+        kube_capture(what="objects", kinds=['backups'], names=[args.backup])
+        backupLogsCmd = "velero backup logs {}".format(args.backup)
+        capture_local(cmd=backupLogsCmd)
+def capture_restore_logs():
+    if args.restore:
+        kube_capture(what="objects", kinds=['restores'], names=[args.restore])
+        restoreLogsCmd = "velero restore logs {}".format(args.restore)
+        capture_local(cmd=restoreLogsCmd)
+
+ns = args.namespace if args.namespace else "velero"
+basedir = args.basedir if args.basedir else os.home
+output = args.output if args.output else "bundle.tar.gz"
+# Working dir for writing during script execution
+crshd = crashd_config(workdir="{0}/velero-bundle".format(basedir))
+set_defaults(kube_config(path=args.kubeconfig))
+capture_local(cmd="velero version -n {}".format(ns))
+capture_backup_logs()
+capture_restore_logs()
+kube_capture(what="logs", namespaces=[ns])
+kube_capture(what="objects", namespaces=[ns], kinds=['backupstoragelocations', 'podvolumebackups', 'podvolumerestores'])
+archive(output_file=output, source_paths=[crshd.workdir])
+
+     

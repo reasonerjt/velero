@@ -1,6 +1,6 @@
 module github.com/vmware-tanzu/velero
 
-go 1.15
+go 1.16
 
 require (
 	github.com/Azure/azure-sdk-for-go v42.0.0+incompatible
@@ -25,16 +25,15 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.7.1
 	github.com/robfig/cron v1.1.0
-	github.com/sirupsen/logrus v1.6.0
+	github.com/sirupsen/logrus v1.7.0
 	github.com/spf13/afero v1.2.2
 	github.com/spf13/cobra v1.1.1
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.5.1
+	github.com/vmware-tanzu/crash-diagnostics v0.3.3
 	golang.org/x/mod v0.3.0
 	golang.org/x/net v0.0.0-20201110031124-69a78807bb2b
-	google.golang.org/genproto v0.0.0-20200731012542-8145dea6a485 // indirect
 	google.golang.org/grpc v1.31.0
-	google.golang.org/protobuf v1.25.0 // indirect
 	k8s.io/api v0.19.7
 	k8s.io/apiextensions-apiserver v0.19.7
 	k8s.io/apimachinery v0.19.7
