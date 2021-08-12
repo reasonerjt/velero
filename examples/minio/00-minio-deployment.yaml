@@ -13,16 +13,10 @@
 # limitations under the License.
 
 ---
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: velero
-
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  namespace: velero
+  namespace: velero-minio
   name: minio
   labels:
     component: minio
@@ -50,6 +44,7 @@ spec:
         - server
         - /storage
         - --config-dir=/config
+        - --console-address=:9001
         env:
         - name: MINIO_ACCESS_KEY
           value: "minio"
@@ -62,12 +57,14 @@ spec:
           mountPath: "/storage"
         - name: config
           mountPath: "/config"
+      imagePullSecrets:
+      - name: regcred
 
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  namespace: velero
+  namespace: velero-minio
   name: minio
   labels:
     component: minio
@@ -80,14 +77,39 @@ spec:
     - port: 9000
       targetPort: 9000
       protocol: TCP
+      name: server
+    - port: 9001
+      targetPort: 9001
+      protocol: TCP
+      name: console
   selector:
     component: minio
 
 ---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: velero-minio
+  name: minio-np
+  labels:
+    component: minio
+spec:
+  type: NodePort
+  selector:
+    component: minio
+  ports:
+      # By default and for convenience, the `targetPort` is set to the same value as the `port` field.
+    - port: 9000
+      targetPort: 9000
+      name: np-server
+    - port: 9001
+      targetPort: 9001
+      name: np-console
+---
 apiVersion: batch/v1
 kind: Job
 metadata:
-  namespace: velero
+  namespace: velero-minio
   name: minio-setup
   labels:
     component: minio
@@ -111,3 +133,6 @@ spec:
         volumeMounts:
         - name: config
           mountPath: "/config"
+      imagePullSecrets:
+      - name: regcred
+      
