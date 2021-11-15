@@ -16,7 +16,7 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: nginx-example-nosleep
+  name: nginx-example-sleep120
   labels:
     app: nginx
 
@@ -25,7 +25,7 @@ kind: PersistentVolumeClaim
 apiVersion: v1
 metadata:
   name: nginx-logs
-  namespace: nginx-example-nosleep
+  namespace: nginx-example-sleep120
   labels:
     app: nginx
 spec:
@@ -42,7 +42,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: nginx-deployment
-  namespace: nginx-example-nosleep
+  namespace: nginx-example-sleep120
 spec:
   replicas: 1
   selector:
@@ -54,7 +54,7 @@ spec:
         app: nginx
       annotations:
         pre.hook.backup.velero.io/container: fsfreeze
-        pre.hook.backup.velero.io/command: '["/bin/bash", "-c", "echo \"pre\" > var/log/nginx/lab-pre-backup"]'
+        pre.hook.backup.velero.io/command: '["/bin/bash", "-c", "echo \"pre\" > var/log/nginx/lab-pre-backup;sleep 120"]'
         pre.hook.backup.velero.io/timeout: 360s
         post.hook.backup.velero.io/container: fsfreeze
         post.hook.backup.velero.io/command: '["/bin/bash", "-c", "echo \"post\" > var/log/nginx/lab-post-backup"]'
