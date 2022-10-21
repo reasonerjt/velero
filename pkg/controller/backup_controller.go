@@ -924,6 +924,7 @@ func (c *backupController) waitVolumeSnapshotReadyToUse(ctx context.Context,
 	interval := 5 * time.Second
 	volumeSnapshots := make([]snapshotv1api.VolumeSnapshot, 0)
 
+	ch := make(chan snapshotv1api.VolumeSnapshot)
 	if c.volumeSnapshotLister != nil {
 		tmpVSs, err := c.volumeSnapshotLister.List(label.NewSelectorForBackup(backupName))
 		if err != nil {
@@ -938,7 +939,6 @@ func (c *backupController) waitVolumeSnapshotReadyToUse(ctx context.Context,
 
 	for index := range volumeSnapshots {
 		volumeSnapshot := volumeSnapshots[index]
-		internalIndex := index
 		eg.Go(func() error {
 			err := wait.PollImmediate(interval, timeout, func() (bool, error) {
 				tmpVS, err := c.volumeSnapshotClient.SnapshotV1().VolumeSnapshots(volumeSnapshot.Namespace).Get(ctx, volumeSnapshot.Name, metav1.GetOptions{})
@@ -952,14 +952,19 @@ func (c *backupController) waitVolumeSnapshotReadyToUse(ctx context.Context,
 
 				c.logger.Debugf("VolumeSnapshot %s/%s turned into ReadyToUse.", volumeSnapshot.Namespace, volumeSnapshot.Name)
 				// Replace the ReadyToUse VolumeSnapshot element in the returned array.
-				volumeSnapshots[internalIndex] = *tmpVS
+				volumeSnapshot = *tmpVS
 				return true, nil
 			})
 			if err == wait.ErrWaitTimeout {
 				c.logger.Errorf("Timed out awaiting reconciliation of volumesnapshot %s/%s", volumeSnapshot.Namespace, volumeSnapshot.Name)
 			}
+			ch <- volumeSnapshot
 			return err
 		})
+	}
+	result := make([]snapshotv1api.VolumeSnapshot, 0)
+	for _ = range volumeSnapshots {
+		result = append(result, <-ch)
 	}
 	return volumeSnapshots, eg.Wait()
 }
