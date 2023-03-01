@@ -67,6 +67,8 @@ import (
 	"github.com/vmware-tanzu/velero/pkg/volume"
 )
 
+const originalUIDAnnotation = "velero.io/original-resource-uid"
+
 type VolumeSnapshotterGetter interface {
 	GetVolumeSnapshotter(name string) (velero.VolumeSnapshotter, error)
 }
@@ -1728,6 +1730,14 @@ func resetStatus(obj *unstructured.Unstructured) {
 }
 
 func resetMetadataAndStatus(obj *unstructured.Unstructured) (*unstructured.Unstructured, error) {
+
+	uid := string(obj.GetUID())
+	annotations := obj.GetAnnotations()
+	if annotations == nil {
+		annotations = map[string]string{}
+	}
+	annotations[originalUIDAnnotation] = uid
+	obj.SetAnnotations(annotations)
 	_, err := resetMetadata(obj)
 	if err != nil {
 		return nil, err
