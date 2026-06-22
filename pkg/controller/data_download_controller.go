@@ -22,7 +22,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pkg/errors"
+	"github.com/cockroachdb/errors"
 	"github.com/sirupsen/logrus"
 	corev1api "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -479,6 +479,7 @@ func (r *DataDownloadReconciler) OnDataDownloadCompleted(ctx context.Context, na
 		TargetPVCName:    dd.Spec.TargetVolume.PVC,
 		TargetNamespace:  dd.Spec.TargetVolume.Namespace,
 		OperationTimeout: dd.Spec.OperationTimeout.Duration,
+		TargetFSType:     dd.Spec.TargetVolume.FSType,
 	})
 	if err != nil {
 		log.WithError(err).Error("Failed to rebind PV to target PVC on completion")

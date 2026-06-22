@@ -23,8 +23,8 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/sets"
 
+	"github.com/cockroachdb/errors"
 	"github.com/gobwas/glob"
-	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	corev1api "k8s.io/api/core/v1"
 	crclient "sigs.k8s.io/controller-runtime/pkg/client"
@@ -155,8 +155,33 @@ func unmarshalResourcePolicies(yamlData *string) (*ResourcePolicies, error) {
 				return nil, fmt.Errorf("pvcLabels must be a map of string to string, got %T", raw)
 			}
 		}
+		if raw, ok := vp.Conditions["pvcVolumeMode"]; ok {
+			if _, ok := raw.(string); !ok {
+				return nil, fmt.Errorf("pvcVolumeMode must be a string, got %T", raw)
+			}
+		}
+		if raw, ok := vp.Conditions["pvcAccessModes"]; ok {
+			if err := validateStringSliceCondition("pvcAccessModes", raw); err != nil {
+				return nil, err
+			}
+		}
 	}
 	return resPolicies, nil
+}
+
+func validateStringSliceCondition(name string, raw any) error {
+	switch values := raw.(type) {
+	case []any:
+		for _, value := range values {
+			if _, ok := value.(string); !ok {
+				return fmt.Errorf("%s must be a list of strings, got element %T", name, value)
+			}
+		}
+	case []string:
+	default:
+		return fmt.Errorf("%s must be a list of strings, got %T", name, raw)
+	}
+	return nil
 }
 
 func (p *Policies) BuildPolicy(resPolicies *ResourcePolicies) error {
@@ -181,6 +206,12 @@ func (p *Policies) BuildPolicy(resPolicies *ResourcePolicies) error {
 		}
 		if len(con.PVCPhase) > 0 {
 			volP.conditions = append(volP.conditions, &pvcPhaseCondition{phases: con.PVCPhase})
+		}
+		if con.PVCVolumeMode != "" {
+			volP.conditions = append(volP.conditions, &pvcVolumeModeCondition{volumeMode: con.PVCVolumeMode})
+		}
+		if len(con.PVCAccessModes) > 0 {
+			volP.conditions = append(volP.conditions, &pvcAccessModesCondition{accessModes: con.PVCAccessModes})
 		}
 		p.volumePolicies = append(p.volumePolicies, volP)
 	}
