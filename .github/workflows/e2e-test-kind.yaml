@@ -59,8 +59,10 @@ jobs:
       # Check and build MinIO image once for all e2e tests
       - name: Check Bitnami MinIO Dockerfile version
         id: minio-version
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          DOCKERFILE_SHA=$(curl -s https://api.github.com/repos/bitnami/containers/commits?path=bitnami/minio/2026/debian-12/Dockerfile\&per_page=1 | jq -r '.[0].sha')
+          DOCKERFILE_SHA=$(curl -s -H "Authorization: Bearer $GH_TOKEN" https://api.github.com/repos/bitnami/containers/commits?path=bitnami/minio/2026/debian-12/Dockerfile\&per_page=1 | jq -r '.[0].sha')
           echo "dockerfile_sha=${DOCKERFILE_SHA}" >> $GITHUB_OUTPUT
       - name: Cache MinIO Image
         uses: actions/cache@v4
@@ -187,7 +189,7 @@ jobs:
         timeout-minutes: 30
       - name: Upload debug bundle
         if: ${{ failure() }}
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: DebugBundle-k8s-${{ matrix.k8s }}-job-${{ strategy.job-index }}
           path: /home/runner/work/velero/velero/test/e2e/debug-bundle*

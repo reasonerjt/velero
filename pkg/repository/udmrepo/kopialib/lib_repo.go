@@ -44,7 +44,7 @@ import (
 	"github.com/vmware-tanzu/velero/pkg/kopia"
 	"github.com/vmware-tanzu/velero/pkg/repository/udmrepo"
 	"github.com/vmware-tanzu/velero/pkg/repository/udmrepo/kopialib/backend"
-	"github.com/vmware-tanzu/velero/pkg/repository/udmrepo/kopialib/freelist"
+	"github.com/vmware-tanzu/velero/pkg/util/freelist"
 )
 
 type kopiaRepoService struct {
