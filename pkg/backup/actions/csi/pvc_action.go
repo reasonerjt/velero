@@ -536,14 +536,10 @@ func newDataUpload(
 	vsc *snapshotv1api.VolumeSnapshotContent,
 	fsType string,
 ) *velerov2alpha1.DataUpload {
-	var parentSnapshot string
-	switch backup.Spec.BackupType {
-	case velerov1api.BackupTypeFull:
+	parentSnapshot := ""
+
+	if backup.Spec.BackupType == velerov1api.BackupTypeFull {
 		parentSnapshot = veleroshared.DataUploadParentSnapshotNone
-	case velerov1api.BackupTypeIncremental:
-		parentSnapshot = veleroshared.DataUploadParentSnapshotAuto
-	default:
-		parentSnapshot = veleroshared.DataUploadParentSnapshotAuto
 	}
 
 	dataUpload := &velerov2alpha1.DataUpload{

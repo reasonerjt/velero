@@ -291,7 +291,7 @@ func TestKopiaObjectWriterEx_Write(t *testing.T) {
 				t.Helper()
 				err := kow.getWriteError()
 				require.Error(t, err)
-				assert.Contains(t, err.Error(), "error opening writer for -b0")
+				assert.Contains(t, err.Error(), "error writing object for , entry 0: error opening writer")
 			},
 		},
 		{
@@ -936,7 +936,7 @@ func TestKopiaObjectWriterEx_WriteAt(t *testing.T) {
 			},
 			inputData:   make([]byte, 1024),
 			offset:      1024,
-			expectedErr: "error writing zero object for -b0: error writing for -b0: simulated zero object write error",
+			expectedErr: "error writing zero object for , entry 0: error writing data: simulated zero object write error",
 		},
 		{
 			name: "writeObject short write",
@@ -964,7 +964,7 @@ func TestKopiaObjectWriterEx_WriteAt(t *testing.T) {
 				t.Helper()
 				err := kow.getWriteError()
 				require.Error(t, err)
-				assert.Contains(t, err.Error(), "short write for -b0")
+				assert.Contains(t, err.Error(), "error writing object for , entry 0: short write")
 			},
 		},
 	}

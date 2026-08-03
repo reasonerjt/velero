@@ -21,6 +21,7 @@ import (
 	"context"
 	"io"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -357,7 +358,7 @@ func TestBlockUploaderBackup(t *testing.T) {
 				}
 
 				repoWriter.On("NewObjectWriter", mock.Anything, mock.MatchedBy(func(opt udmrepo.ObjectWriteOptions) bool {
-					return opt.Description == "BDEV:data-volume1" && opt.BackupMode == backupMode
+					return strings.HasPrefix(opt.Description, "BDEV:data-volume1-") && opt.BackupMode == backupMode
 				})).Return(objWriter, tc.createObjErr)
 			}
 

@@ -45,7 +45,6 @@ import (
 	crclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/vmware-tanzu/velero/pkg/apis/velero/shared"
-	veleroshared "github.com/vmware-tanzu/velero/pkg/apis/velero/shared"
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	velerov2alpha1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v2alpha1"
 	"github.com/vmware-tanzu/velero/pkg/builder"
@@ -162,7 +161,7 @@ func TestExecute(t *testing.T) {
 					SourcePVC:        "testPVC",
 					SourceNamespace:  "velero",
 					OperationTimeout: metav1.Duration{Duration: 1 * time.Minute},
-					ParentSnapshot:   veleroshared.DataUploadParentSnapshotAuto,
+					ParentSnapshot:   "",
 				},
 			},
 		},
@@ -2199,7 +2198,7 @@ func TestNewDataUpload(t *testing.T) {
 			backupType:         velerov1api.BackupTypeIncremental,
 			vsClassName:        ptr.To("test-vs-class"),
 			uploaderConfig:     &velerov1api.UploaderConfigForBackup{ParallelFilesUpload: 10},
-			expectedParentSnap: "auto",
+			expectedParentSnap: "",
 			expectedDataMoverCfg: map[string]string{
 				uploaderUtil.ParallelFilesUpload: "10",
 			},
@@ -2209,7 +2208,7 @@ func TestNewDataUpload(t *testing.T) {
 			backupType:           "",
 			vsClassName:          ptr.To("test-vs-class"),
 			uploaderConfig:       &velerov1api.UploaderConfigForBackup{ParallelFilesUpload: 0},
-			expectedParentSnap:   "auto",
+			expectedParentSnap:   "",
 			expectedDataMoverCfg: nil,
 		},
 	}
