@@ -31,7 +31,7 @@ import (
 	crclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
-	datamover "github.com/vmware-tanzu/velero/pkg/util/datamover"
+	"github.com/vmware-tanzu/velero/pkg/util/datamover"
 	"github.com/vmware-tanzu/velero/pkg/util/wildcard"
 )
 
@@ -59,6 +59,7 @@ const (
 // validDataMovers is the set of data mover values accepted in the snapshot
 // action's dataMover parameter.
 var validDataMovers = map[string]struct{}{
+	datamover.DataMoverTypeEmpty:       {},
 	datamover.DataMoverTypeVelero:      {},
 	datamover.DataMoverTypeVeleroFs:    {},
 	datamover.DataMoverTypeVeleroBlock: {},
@@ -90,14 +91,21 @@ func (a *Action) GetDataMover() (string, error) {
 	if !ok {
 		return datamover.GetDefaultBuiltInDataMover(), nil
 	}
+
 	dataMover, ok := raw.(string)
 	if !ok {
 		return "", fmt.Errorf("parameter %q must be a string, got %T", DataMoverParameter, raw)
 	}
 	if _, ok := validDataMovers[dataMover]; !ok {
-		return "", fmt.Errorf("invalid %q value %q, valid values are %q, %q, %q",
-			DataMoverParameter, dataMover, datamover.DataMoverTypeVelero, datamover.DataMoverTypeVeleroFs, datamover.DataMoverTypeVeleroBlock)
+		return "", fmt.Errorf("invalid %q value %q, valid values are %q, %q, %q, %q",
+			DataMoverParameter, dataMover, datamover.DataMoverTypeEmpty, datamover.DataMoverTypeVelero, datamover.DataMoverTypeVeleroFs, datamover.DataMoverTypeVeleroBlock)
 	}
+
+	// Return default data mover for backup's volume policy, when the data mover's original value is legacy value: "" or "velero".
+	if dataMover == datamover.DataMoverTypeEmpty || dataMover == datamover.DataMoverTypeVelero {
+		dataMover = datamover.GetDefaultBuiltInDataMover()
+	}
+
 	return dataMover, nil
 }
 

@@ -23,7 +23,7 @@ jobs:
       minio-dockerfile-sha: ${{ steps.minio-version.outputs.dockerfile_sha }}
     steps:
       - name: Check out the code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       
       - name: Set up Go version
         uses: actions/setup-go@v6
@@ -136,7 +136,7 @@ jobs:
       fail-fast: false
     steps:
       - name: Check out the code
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Set up Go version
         uses: actions/setup-go@v6

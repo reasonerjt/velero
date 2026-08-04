@@ -466,7 +466,7 @@ func (r *DataDownloadReconciler) OnDataDownloadCompleted(ctx context.Context, na
 	defer r.dataPathMgr.RemoveAsyncBR(ddName)
 
 	log := r.logger.WithField("datadownload", ddName)
-	log.Info("Async fs restore data path completed")
+	log.Info("Async restore data path completed")
 
 	var dd velerov2alpha1api.DataDownload
 	if err := r.client.Get(ctx, types.NamespacedName{Name: ddName, Namespace: namespace}, &dd); err != nil {
@@ -513,7 +513,7 @@ func (r *DataDownloadReconciler) OnDataDownloadFailed(ctx context.Context, names
 
 	log := r.logger.WithField("datadownload", ddName)
 
-	log.WithError(err).Error("Async fs restore data path failed")
+	log.WithError(err).Error("Async restore data path failed")
 
 	var dd velerov2alpha1api.DataDownload
 	if getErr := r.client.Get(ctx, types.NamespacedName{Name: ddName, Namespace: namespace}, &dd); getErr != nil {
@@ -528,7 +528,7 @@ func (r *DataDownloadReconciler) OnDataDownloadCancelled(ctx context.Context, na
 
 	log := r.logger.WithField("datadownload", ddName)
 
-	log.Warn("Async fs backup data path canceled")
+	log.Warn("Async restore data path canceled")
 
 	var dd velerov2alpha1api.DataDownload
 	if getErr := r.client.Get(ctx, types.NamespacedName{Name: ddName, Namespace: namespace}, &dd); getErr != nil {

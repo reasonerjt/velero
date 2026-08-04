@@ -135,6 +135,14 @@ type RestoreSpec struct {
 	// +nullable
 	ResourcePolicy *corev1api.TypedLocalObjectReference `json:"resourcePolicy,omitempty"`
 
+	// SkipDefaultResourceModifier controls whether the server-configured default
+	// resource modifier is applied to this restore.
+	// When true, the default modifier is skipped even if configured on the server.
+	// Has no effect when a per-restore ResourceModifier is specified.
+	// +optional
+	// +nullable
+	SkipDefaultResourceModifier *bool `json:"skipDefaultResourceModifier,omitempty"`
+
 	// UploaderConfig specifies the configuration for the restore.
 	// +optional
 	// +nullable

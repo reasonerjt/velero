@@ -31,6 +31,7 @@ import (
 
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	velerotest "github.com/vmware-tanzu/velero/pkg/test"
+	"github.com/vmware-tanzu/velero/pkg/util/datamover"
 )
 
 func pvcVolumeMode(mode corev1api.PersistentVolumeMode) *corev1api.PersistentVolumeMode {
@@ -2999,10 +3000,10 @@ namespacedFilterPolicies:
 
 func TestActionGetDataMover(t *testing.T) {
 	testCases := []struct {
-		name         string
-		action       *Action
-		expectedMove string
-		expectErr    bool
+		name              string
+		action            *Action
+		expectedDataMover string
+		expectErr         bool
 	}{
 		{
 			name:      "nil action",
@@ -3010,29 +3011,29 @@ func TestActionGetDataMover(t *testing.T) {
 			expectErr: true,
 		},
 		{
-			name:         "snapshot action without parameters returns default mover",
-			action:       &Action{Type: Snapshot},
-			expectedMove: "velero-fs",
+			name:              "snapshot action without parameters returns default mover",
+			action:            &Action{Type: Snapshot},
+			expectedDataMover: datamover.GetDefaultBuiltInDataMover(),
 		},
 		{
-			name:         "snapshot action without dataMover parameter returns default mover",
-			action:       &Action{Type: Snapshot, Parameters: map[string]any{"other": "value"}},
-			expectedMove: "velero-fs",
+			name:              "snapshot action without dataMover parameter returns default mover",
+			action:            &Action{Type: Snapshot, Parameters: map[string]any{"other": "value"}},
+			expectedDataMover: datamover.GetDefaultBuiltInDataMover(),
 		},
 		{
-			name:         "snapshot action with velero dataMover",
-			action:       &Action{Type: Snapshot, Parameters: map[string]any{"dataMover": "velero"}},
-			expectedMove: "velero",
+			name:              "snapshot action with velero dataMover",
+			action:            &Action{Type: Snapshot, Parameters: map[string]any{"dataMover": "velero"}},
+			expectedDataMover: datamover.GetDefaultBuiltInDataMover(),
 		},
 		{
-			name:         "snapshot action with velero-fs dataMover",
-			action:       &Action{Type: Snapshot, Parameters: map[string]any{"dataMover": "velero-fs"}},
-			expectedMove: "velero-fs",
+			name:              "snapshot action with velero-fs dataMover",
+			action:            &Action{Type: Snapshot, Parameters: map[string]any{"dataMover": datamover.DataMoverTypeVeleroFs}},
+			expectedDataMover: datamover.DataMoverTypeVeleroFs,
 		},
 		{
-			name:         "snapshot action with velero-block dataMover",
-			action:       &Action{Type: Snapshot, Parameters: map[string]any{"dataMover": "velero-block"}},
-			expectedMove: "velero-block",
+			name:              "snapshot action with velero-block dataMover",
+			action:            &Action{Type: Snapshot, Parameters: map[string]any{"dataMover": datamover.DataMoverTypeVeleroBlock}},
+			expectedDataMover: datamover.DataMoverTypeVeleroBlock,
 		},
 		{
 			name:      "non-snapshot action returns error",
@@ -3059,7 +3060,7 @@ func TestActionGetDataMover(t *testing.T) {
 				return
 			}
 			require.NoError(t, err)
-			assert.Equal(t, tc.expectedMove, dataMover)
+			assert.Equal(t, tc.expectedDataMover, dataMover)
 		})
 	}
 }

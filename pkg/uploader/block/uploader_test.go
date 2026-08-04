@@ -320,6 +320,7 @@ func TestBlockUploaderBackup(t *testing.T) {
 						iterMock.On("Count").Return(uint64(1))
 						iterMock.On("Next").Return(uint64(0), true).Maybe()
 
+						objWriter.On("WriteAt", mock.Anything, mock.Anything).Return(0, context.Canceled).Maybe()
 						objWriter.On("Result").Return(udmrepo.ID(""), errors.New("write failed")).Maybe()
 					} else if tc.shortWrite {
 						iterMock.On("BlockSize").Return(uint(1048576))

@@ -109,6 +109,10 @@ func TestDeployment(t *testing.T) {
 	assert.Len(t, deploy.Spec.Template.Spec.Containers[0].Args, 2)
 	assert.Equal(t, "--repo-maintenance-job-configmap=test-repo-maintenance-config", deploy.Spec.Template.Spec.Containers[0].Args[1])
 
+	deploy = Deployment("velero", WithDefaultResourceModifierConfigMap("default-restore-modifiers"))
+	assert.Len(t, deploy.Spec.Template.Spec.Containers[0].Args, 2)
+	assert.Equal(t, "--default-resource-modifier-configmap=default-restore-modifiers", deploy.Spec.Template.Spec.Containers[0].Args[1])
+
 	assert.Equal(t, &corev1api.Affinity{
 		NodeAffinity: &corev1api.NodeAffinity{
 			RequiredDuringSchedulingIgnoredDuringExecution: &corev1api.NodeSelector{

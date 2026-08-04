@@ -58,6 +58,7 @@ import (
 	"github.com/vmware-tanzu/velero/pkg/plugin/framework"
 	"github.com/vmware-tanzu/velero/pkg/util/boolptr"
 	"github.com/vmware-tanzu/velero/pkg/util/collections"
+	"github.com/vmware-tanzu/velero/pkg/util/datamover"
 	"github.com/vmware-tanzu/velero/pkg/util/encode"
 	kubeutil "github.com/vmware-tanzu/velero/pkg/util/kube"
 	"github.com/vmware-tanzu/velero/pkg/util/logging"
@@ -429,6 +430,10 @@ func (b *backupReconciler) prepareBackupRequest(ctx context.Context, backup *vel
 	if len(request.Spec.BackupType) == 0 {
 		// default backup type to incremental if not specified
 		request.Spec.BackupType = velerov1api.BackupTypeIncremental
+	}
+
+	if len(request.Spec.DataMover) == 0 || request.Spec.DataMover == datamover.DataMoverTypeVelero {
+		request.Spec.DataMover = datamover.GetDefaultBuiltInDataMover()
 	}
 
 	// calculate expiration

@@ -179,7 +179,7 @@ type BackupSpec struct {
 	SnapshotMoveData *bool `json:"snapshotMoveData,omitempty"`
 
 	// DataMover specifies the data mover to be used by the backup.
-	// If DataMover is "" or "velero", the built-in data mover will be used.
+	// If DataMover is "" or "velero", the default built-in data mover will be used.
 	// +optional
 	DataMover string `json:"datamover,omitempty"`
 

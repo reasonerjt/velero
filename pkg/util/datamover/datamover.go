@@ -20,6 +20,7 @@ limitations under the License.
 package datamover
 
 const (
+	DataMoverTypeEmpty = ""
 	// DataMoverTypeVelero refers to the default built-in data mover. The default
 	// data mover may change among releases; see GetDefaultBuiltInDataMover.
 	DataMoverTypeVelero = "velero"
@@ -35,6 +36,7 @@ func IsBuiltInDataMover(dataMover string) bool {
 	return IsVeleroBlockDataMover(dataMover) || IsVeleroFSDataMover(dataMover)
 }
 
+// IsVeleroFSDataMover checks whether the given data mover belongs to fs type.
 func IsVeleroFSDataMover(dataMover string) bool {
 	if dataMover == "" || dataMover == DataMoverTypeVelero {
 		dataMover = DataMoverTypeVeleroFs
@@ -42,6 +44,7 @@ func IsVeleroFSDataMover(dataMover string) bool {
 	return dataMover == DataMoverTypeVeleroFs
 }
 
+// IsVeleroBlockDataMover checks whether the given data mover belongs to block type.
 func IsVeleroBlockDataMover(dataMover string) bool {
 	return dataMover == DataMoverTypeVeleroBlock
 }
