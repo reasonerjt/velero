@@ -1086,6 +1086,7 @@ func TestRestoreItems(t *testing.T) {
 		apiResources         []*test.APIResource
 		tarball              io.Reader
 		want                 []*test.APIResource
+		wantWarnings         Result
 		expectedRestoreItems map[itemKey]restoredItemStatus
 		disableInformer      bool
 	}{
@@ -1329,6 +1330,52 @@ func TestRestoreItems(t *testing.T) {
 			},
 		},
 		{
+			name:    "mark item as skipped when pod exists in cluster and is different from backed up one, existing resource policy is none",
+			restore: defaultRestore().ExistingResourcePolicy("none").Result(),
+			backup:  defaultBackup().Result(),
+			tarball: test.NewTarWriter(t).
+				AddItems("pods", builder.ForPod("ns-1", "pod-1").ObjectMeta(builder.WithLabels("app", "backed-up")).Result()).
+				Done(),
+			apiResources: []*test.APIResource{
+				test.Pods(builder.ForPod("ns-1", "pod-1").ObjectMeta(builder.WithLabels("app", "in-cluster")).Result()),
+			},
+			want: []*test.APIResource{
+				test.Pods(builder.ForPod("ns-1", "pod-1").ObjectMeta(builder.WithLabels("app", "in-cluster")).Result()),
+			},
+			wantWarnings: Result{
+				Namespaces: map[string][]string{
+					"ns-1": {"could not restore, Pod \"pod-1\" already exists. Warning: the in-cluster version is different than the backed-up version"},
+				},
+			},
+			expectedRestoreItems: map[itemKey]restoredItemStatus{
+				{resource: "v1/Namespace", namespace: "", name: "ns-1"}: {action: "created", itemExists: true, createdName: "ns-1"},
+				{resource: "v1/Pod", namespace: "ns-1", name: "pod-1"}:  {action: "skipped", itemExists: true},
+			},
+		},
+		{
+			name:    "mark item as skipped when pod exists in cluster and is different from backed up one, existing resource policy is not specified",
+			restore: defaultRestore().Result(),
+			backup:  defaultBackup().Result(),
+			tarball: test.NewTarWriter(t).
+				AddItems("pods", builder.ForPod("ns-1", "pod-1").ObjectMeta(builder.WithLabels("app", "backed-up")).Result()).
+				Done(),
+			apiResources: []*test.APIResource{
+				test.Pods(builder.ForPod("ns-1", "pod-1").ObjectMeta(builder.WithLabels("app", "in-cluster")).Result()),
+			},
+			want: []*test.APIResource{
+				test.Pods(builder.ForPod("ns-1", "pod-1").ObjectMeta(builder.WithLabels("app", "in-cluster")).Result()),
+			},
+			wantWarnings: Result{
+				Namespaces: map[string][]string{
+					"ns-1": {"could not restore, Pod:pod-1 already exists. Warning: the in-cluster version is different than the backed-up version"},
+				},
+			},
+			expectedRestoreItems: map[itemKey]restoredItemStatus{
+				{resource: "v1/Namespace", namespace: "", name: "ns-1"}: {action: "created", itemExists: true, createdName: "ns-1"},
+				{resource: "v1/Pod", namespace: "ns-1", name: "pod-1"}:  {action: "skipped", itemExists: true},
+			},
+		},
+		{
 			name:    "service account secrets and image pull secrets are restored when service account already exists in cluster",
 			restore: defaultRestore().Result(),
 			backup:  defaultBackup().Result(),
@@ -1437,7 +1484,12 @@ func TestRestoreItems(t *testing.T) {
 				nil, // volume snapshotter getter
 			)
 
-			assertEmptyResults(t, warnings, errs)
+			if tc.wantWarnings.IsEmpty() {
+				assertEmptyResults(t, warnings)
+			} else {
+				assertWantErrsOrWarnings(t, tc.wantWarnings, warnings)
+			}
+			assertEmptyResults(t, errs)
 			assertRestoredItems(t, h, tc.want)
 			if len(tc.expectedRestoreItems) > 0 {
 				assert.Equal(t, tc.expectedRestoreItems, data.RestoredItems)
@@ -2297,6 +2349,62 @@ func TestRestoreActionAdditionalItems(t *testing.T) {
 			assertAPIContents(t, h, tc.want)
 		})
 	}
+}
+
+// TestRestoreActionAdditionalItemsInvalidJSON verifies that an additional item whose file
+// exists in the backup but does not contain valid JSON is reported as an error and skipped,
+// rather than being passed to restoreItem as a nil object.
+//
+// archive.Unmarshal returns (nil, err) for malformed JSON, and restoreItem dereferences its
+// obj argument immediately, so failing to skip the item panics the restore reconciler.
+func TestRestoreActionAdditionalItemsInvalidJSON(t *testing.T) {
+	h := newHarness(t)
+
+	for _, r := range []*test.APIResource{test.Pods(), test.PVs()} {
+		h.AddItems(t, r)
+	}
+
+	// pv-1.json exists so the Stat check passes, but its contents are not valid JSON.
+	tarball := test.NewTarWriter(t).
+		AddItems("pods", builder.ForPod("ns-1", "pod-1").Result()).
+		Add("resources/persistentvolumes/cluster/pv-1.json", []byte("not-json")).
+		Done()
+
+	actions := []riav2.RestoreItemAction{
+		&pluggableAction{
+			executeFunc: func(input *velero.RestoreItemActionExecuteInput) (*velero.RestoreItemActionExecuteOutput, error) {
+				return &velero.RestoreItemActionExecuteOutput{
+					UpdatedItem: input.Item,
+					AdditionalItems: []velero.ResourceIdentifier{
+						{GroupResource: kuberesource.PersistentVolumes, Name: "pv-1"},
+					},
+				}, nil
+			},
+		},
+	}
+
+	data := &Request{
+		Log:          h.log,
+		Restore:      defaultRestore().Result(),
+		Backup:       defaultBackup().Result(),
+		BackupReader: tarball,
+	}
+
+	// A nil additional item passed on to restoreItem panics here rather than failing.
+	warnings, errs := h.restorer.Restore(data, actions, nil)
+
+	assertWantErrsOrWarnings(t, Result{}, warnings)
+	assertWantErrsOrWarnings(t, Result{
+		Namespaces: map[string][]string{
+			"ns-1": {"error restoring additional item persistentvolumes/pv-1"},
+		},
+	}, errs)
+
+	// The item that triggered the action is still restored, so the loop continued.
+	assertAPIContents(t, h, map[*test.APIResource][]string{
+		test.Pods(): {"ns-1/pod-1"},
+		test.PVs():  {},
+	})
 }
 
 // TestRestoreMustIncludeAdditionalItems covers restore must-include edge cases beyond the

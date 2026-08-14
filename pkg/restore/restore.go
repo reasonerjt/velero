@@ -1011,11 +1011,13 @@ func (ctx *restoreContext) processSelectedResource(
 			if namespace != "" && !existingNamespaces.Has(targetNS) {
 				logger := ctx.log.WithField("namespace", namespace)
 
-				ns := getNamespace(
-					logger,
-					archive.GetItemFilePath(ctx.restoreDir, "namespaces", "", namespace),
-					targetNS,
-				)
+				nsPath, err := archive.GetItemFilePath(ctx.restoreDir, "namespaces", "", namespace)
+				if err != nil {
+					errs.AddVeleroError(err)
+					continue
+				}
+
+				ns := getNamespace(logger, nsPath, targetNS)
 				_, nsCreated, err := kube.EnsureNamespaceExistsAndIsReady(
 					ns,
 					ctx.namespaceClient,
@@ -1440,7 +1442,13 @@ func (ctx *restoreContext) restoreItem(obj *unstructured.Unstructured, groupReso
 		// If the namespace scoped resource should be restored, ensure that the
 		// namespace into which the resource is being restored into exists.
 		// This is the *remapped* namespace that we are ensuring exists.
-		nsToEnsure := getNamespace(restoreLogger, archive.GetItemFilePath(ctx.restoreDir, "namespaces", "", obj.GetNamespace()), namespace)
+		nsPath, err := archive.GetItemFilePath(ctx.restoreDir, "namespaces", "", obj.GetNamespace())
+		if err != nil {
+			errs.AddVeleroError(err)
+			return warnings, errs, itemExists
+		}
+
+		nsToEnsure := getNamespace(restoreLogger, nsPath, namespace)
 		_, nsCreated, err := kube.EnsureNamespaceExistsAndIsReady(nsToEnsure, ctx.namespaceClient, ctx.resourceTerminatingTimeout, ctx.resourceDeletionStatusTracker)
 		if err != nil {
 			errs.AddVeleroError(err)
@@ -1693,7 +1701,17 @@ func (ctx *restoreContext) restoreItem(obj *unstructured.Unstructured, groupReso
 
 		var filteredAdditionalItems []velero.ResourceIdentifier
 		for _, additionalItem := range executeOutput.AdditionalItems {
-			itemPath := archive.GetItemFilePath(ctx.restoreDir, additionalItem.GroupResource.String(), additionalItem.Namespace, additionalItem.Name)
+			itemPath, err := archive.GetItemFilePath(ctx.restoreDir, additionalItem.GroupResource.String(), additionalItem.Namespace, additionalItem.Name)
+			if err != nil {
+				restoreLogger.WithError(err).WithFields(logrus.Fields{
+					"additionalResource":          additionalItem.GroupResource.String(),
+					"additionalResourceNamespace": additionalItem.Namespace,
+					"additionalResourceName":      additionalItem.Name,
+				}).Warn("unable to restore additional item")
+				warnings.Add(additionalItem.Namespace, err)
+
+				continue
+			}
 
 			if _, err := ctx.fileSystem.Stat(itemPath); err != nil {
 				restoreLogger.WithError(err).WithFields(logrus.Fields{
@@ -1936,6 +1954,8 @@ func (ctx *restoreContext) restoreItem(obj *unstructured.Unstructured, groupReso
 						e := errors.Errorf("could not restore, %s %q already exists. Warning: the in-cluster version is different than the backed-up version",
 							obj.GetKind(), obj.GetName())
 						warnings.Add(namespace, e)
+						itemStatus.action = ItemRestoreResultSkipped
+						ctx.restoredItems[itemKey] = itemStatus
 						// existingResourcePolicy is set as update, attempt patch on the resource and add warning if it fails
 					} else if resourcePolicy == velerov1api.PolicyTypeUpdate {
 						// processing update as existingResourcePolicy
@@ -1951,6 +1971,8 @@ func (ctx *restoreContext) restoreItem(obj *unstructured.Unstructured, groupReso
 					// Preserved Velero behavior when existingResourcePolicy is not specified by the user
 					e := errors.Errorf("could not restore, %s:%s already exists. Warning: the in-cluster version is different than the backed-up version",
 						obj.GetKind(), obj.GetName())
+					itemStatus.action = ItemRestoreResultSkipped
+					ctx.restoredItems[itemKey] = itemStatus
 					warnings.Add(namespace, e)
 				}
 			}
@@ -2671,9 +2693,9 @@ func (ctx *restoreContext) getSelectedRestoreableItems(resource string, original
 
 				// Peek-and-map logic for unresolvable kinds
 				if rf == nil && len(items) > 0 {
-					peekPath := archive.GetItemFilePath(ctx.restoreDir, resourceForPath, originalNamespace, items[0])
-					// Ignore unmarshal errors during peek; the main restore loop will catch and report them
-					if obj, err := archive.Unmarshal(ctx.fileSystem, peekPath); err == nil {
+					peekPath, pathErr := archive.GetItemFilePath(ctx.restoreDir, resourceForPath, originalNamespace, items[0])
+					// Ignore path and unmarshal errors during peek; the main restore loop will catch and report them
+					if obj, err := archive.Unmarshal(ctx.fileSystem, peekPath); pathErr == nil && err == nil {
 						actualKind := obj.GroupVersionKind().Kind
 						for _, filter := range nsFilter.resourceFilterMap {
 							for _, k := range filter.originalKinds {
@@ -2714,9 +2736,9 @@ func (ctx *restoreContext) getSelectedRestoreableItems(resource string, original
 				// Note: Unlike the namespaced path, this fallback is always reachable
 				// because the main restore loop does not have a fast-path skip for
 				// unlisted cluster-scoped resources.
-				peekPath := archive.GetItemFilePath(ctx.restoreDir, resourceForPath, originalNamespace, items[0])
-				// Ignore unmarshal errors during peek; the main restore loop will catch and report them
-				if obj, err := archive.Unmarshal(ctx.fileSystem, peekPath); err == nil {
+				peekPath, pathErr := archive.GetItemFilePath(ctx.restoreDir, resourceForPath, originalNamespace, items[0])
+				// Ignore path and unmarshal errors during peek; the main restore loop will catch and report them
+				if obj, err := archive.Unmarshal(ctx.fileSystem, peekPath); pathErr == nil && err == nil {
 					actualKind := obj.GroupVersionKind().Kind
 					for _, filter := range ctx.clusterScopedFilterMap {
 						for _, k := range filter.originalKinds {
@@ -2742,7 +2764,11 @@ func (ctx *restoreContext) getSelectedRestoreableItems(resource string, original
 	}
 
 	for _, item := range items {
-		itemPath := archive.GetItemFilePath(ctx.restoreDir, resourceForPath, originalNamespace, item)
+		itemPath, err := archive.GetItemFilePath(ctx.restoreDir, resourceForPath, originalNamespace, item)
+		if err != nil {
+			errs.Add(targetNamespace, err)
+			continue
+		}
 
 		obj, err := archive.Unmarshal(ctx.fileSystem, itemPath)
 		if err != nil {
