@@ -1374,7 +1374,7 @@ func TestGetLoadAffinityByStorageClass(t *testing.T) {
 					NodeSelector: metav1.LabelSelector{
 						MatchExpressions: []metav1.LabelSelectorRequirement{
 							{
-								Key:      "kubernetes.io/arch",
+								Key:      corev1api.LabelArchStable,
 								Operator: metav1.LabelSelectorOpIn,
 								Values:   []string{"amd64"},
 							},
@@ -1386,7 +1386,7 @@ func TestGetLoadAffinityByStorageClass(t *testing.T) {
 					NodeSelector: metav1.LabelSelector{
 						MatchExpressions: []metav1.LabelSelectorRequirement{
 							{
-								Key:      "kubernetes.io/os",
+								Key:      corev1api.LabelOSStable,
 								Operator: metav1.LabelSelectorOpIn,
 								Values:   []string{"Linux"},
 							},
@@ -1399,7 +1399,7 @@ func TestGetLoadAffinityByStorageClass(t *testing.T) {
 				NodeSelector: metav1.LabelSelector{
 					MatchExpressions: []metav1.LabelSelectorRequirement{
 						{
-							Key:      "kubernetes.io/os",
+							Key:      corev1api.LabelOSStable,
 							Operator: metav1.LabelSelectorOpIn,
 							Values:   []string{"Linux"},
 						},
@@ -1414,7 +1414,7 @@ func TestGetLoadAffinityByStorageClass(t *testing.T) {
 					NodeSelector: metav1.LabelSelector{
 						MatchExpressions: []metav1.LabelSelectorRequirement{
 							{
-								Key:      "kubernetes.io/os",
+								Key:      corev1api.LabelOSStable,
 								Operator: metav1.LabelSelectorOpIn,
 								Values:   []string{"Linux"},
 							},
@@ -1425,7 +1425,7 @@ func TestGetLoadAffinityByStorageClass(t *testing.T) {
 					NodeSelector: metav1.LabelSelector{
 						MatchExpressions: []metav1.LabelSelectorRequirement{
 							{
-								Key:      "kubernetes.io/arch",
+								Key:      corev1api.LabelArchStable,
 								Operator: metav1.LabelSelectorOpIn,
 								Values:   []string{"amd64"},
 							},
@@ -1436,7 +1436,7 @@ func TestGetLoadAffinityByStorageClass(t *testing.T) {
 					NodeSelector: metav1.LabelSelector{
 						MatchExpressions: []metav1.LabelSelectorRequirement{
 							{
-								Key:      "kubernetes.io/os",
+								Key:      corev1api.LabelOSStable,
 								Operator: metav1.LabelSelectorOpIn,
 								Values:   []string{"Windows"},
 							},
@@ -1449,7 +1449,7 @@ func TestGetLoadAffinityByStorageClass(t *testing.T) {
 				NodeSelector: metav1.LabelSelector{
 					MatchExpressions: []metav1.LabelSelectorRequirement{
 						{
-							Key:      "kubernetes.io/os",
+							Key:      corev1api.LabelOSStable,
 							Operator: metav1.LabelSelectorOpIn,
 							Values:   []string{"Linux"},
 						},
@@ -1475,7 +1475,7 @@ func TestGetLoadAffinityByStorageClass(t *testing.T) {
 					NodeSelector: metav1.LabelSelector{
 						MatchExpressions: []metav1.LabelSelectorRequirement{
 							{
-								Key:      "kubernetes.io/os",
+								Key:      corev1api.LabelOSStable,
 								Operator: metav1.LabelSelectorOpIn,
 								Values:   []string{"Linux"},
 							},
@@ -1487,7 +1487,7 @@ func TestGetLoadAffinityByStorageClass(t *testing.T) {
 					NodeSelector: metav1.LabelSelector{
 						MatchExpressions: []metav1.LabelSelectorRequirement{
 							{
-								Key:      "kubernetes.io/arch",
+								Key:      corev1api.LabelArchStable,
 								Operator: metav1.LabelSelectorOpIn,
 								Values:   []string{"amd64"},
 							},
@@ -1501,7 +1501,7 @@ func TestGetLoadAffinityByStorageClass(t *testing.T) {
 				NodeSelector: metav1.LabelSelector{
 					MatchExpressions: []metav1.LabelSelectorRequirement{
 						{
-							Key:      "kubernetes.io/os",
+							Key:      corev1api.LabelOSStable,
 							Operator: metav1.LabelSelectorOpIn,
 							Values:   []string{"Linux"},
 						},
@@ -1517,7 +1517,7 @@ func TestGetLoadAffinityByStorageClass(t *testing.T) {
 					NodeSelector: metav1.LabelSelector{
 						MatchExpressions: []metav1.LabelSelectorRequirement{
 							{
-								Key:      "kubernetes.io/arch",
+								Key:      corev1api.LabelArchStable,
 								Operator: metav1.LabelSelectorOpIn,
 								Values:   []string{"amd64"},
 							},

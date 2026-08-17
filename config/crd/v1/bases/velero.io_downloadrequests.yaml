@@ -79,8 +79,9 @@ spec:
             description: DownloadRequestStatus is the current status of a DownloadRequest.
             properties:
               downloadURL:
-                description: DownloadURL contains the pre-signed URL for the target
-                  file.
+                description: |-
+                  DownloadURL contains the pre-signed URL for the target file. It is signed for a fixed
+                  lifetime and expires at Expiration, so it should be used promptly and not cached.
                 type: string
               expiration:
                 description: Expiration is when this DownloadRequest expires and can
@@ -89,7 +90,12 @@ spec:
                 nullable: true
                 type: string
               phase:
-                description: Phase is the current state of the DownloadRequest.
+                description: |-
+                  Phase is the current state of the DownloadRequest. Processed means a URL has been
+                  signed into DownloadURL. It does not mean the target object exists in object storage,
+                  so a request whose target never produced a file still reaches Processed and the URL
+                  returns 404. Callers should check that the backup or restore is in a phase that
+                  produces the target before relying on the download.
                 enum:
                 - New
                 - Processed

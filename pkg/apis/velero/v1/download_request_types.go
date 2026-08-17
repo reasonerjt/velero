@@ -64,18 +64,24 @@ const (
 	// DownloadRequestController yet.
 	DownloadRequestPhaseNew DownloadRequestPhase = "New"
 
-	// DownloadRequestPhaseProcessed means the DownloadRequest has been processed by the
-	// DownloadRequestController.
+	// DownloadRequestPhaseProcessed means the DownloadRequestController has signed a URL
+	// into Status.DownloadURL. The controller signs the key by convention and does not
+	// check that the object is present, so this phase does not imply the file exists.
 	DownloadRequestPhaseProcessed DownloadRequestPhase = "Processed"
 )
 
 // DownloadRequestStatus is the current status of a DownloadRequest.
 type DownloadRequestStatus struct {
-	// Phase is the current state of the DownloadRequest.
+	// Phase is the current state of the DownloadRequest. Processed means a URL has been
+	// signed into DownloadURL. It does not mean the target object exists in object storage,
+	// so a request whose target never produced a file still reaches Processed and the URL
+	// returns 404. Callers should check that the backup or restore is in a phase that
+	// produces the target before relying on the download.
 	// +optional
 	Phase DownloadRequestPhase `json:"phase,omitempty"`
 
-	// DownloadURL contains the pre-signed URL for the target file.
+	// DownloadURL contains the pre-signed URL for the target file. It is signed for a fixed
+	// lifetime and expires at Expiration, so it should be used promptly and not cached.
 	// +optional
 	DownloadURL string `json:"downloadURL,omitempty"`
 

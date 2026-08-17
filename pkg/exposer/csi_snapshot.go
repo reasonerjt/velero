@@ -157,7 +157,7 @@ func (e *csiSnapshotExposer) Expose(ctx context.Context, ownerObject corev1api.O
 
 	curLog.Info("Volumesnapshot is ready")
 
-	vsc, err := csi.GetVolumeSnapshotContentForVolumeSnapshot(volumeSnapshot, e.csiSnapshotClient)
+	vsc, err := csi.GetVolumeSnapshotContentForVolumeSnapshot(ctx, volumeSnapshot, e.csiSnapshotClient)
 	if err != nil {
 		return errors.Wrap(err, "error to get volume snapshot content")
 	}
@@ -811,7 +811,7 @@ func (e *csiSnapshotExposer) createBackupPod(
 		}
 
 		affinity.NodeSelector.MatchExpressions = append(affinity.NodeSelector.MatchExpressions, metav1.LabelSelectorRequirement{
-			Key:      "kubernetes.io/hostname",
+			Key:      corev1api.LabelHostname,
 			Values:   intoleratableNodes,
 			Operator: metav1.LabelSelectorOpNotIn,
 		})
@@ -839,7 +839,7 @@ func (e *csiSnapshotExposer) createBackupPod(
 			TopologySpreadConstraints: []corev1api.TopologySpreadConstraint{
 				{
 					MaxSkew:           1,
-					TopologyKey:       "kubernetes.io/hostname",
+					TopologyKey:       corev1api.LabelHostname,
 					WhenUnsatisfiable: corev1api.ScheduleAnyway,
 					LabelSelector: &metav1.LabelSelector{
 						MatchLabels: map[string]string{
