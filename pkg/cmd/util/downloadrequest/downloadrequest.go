@@ -42,6 +42,11 @@ var ErrNotFound = errors.New("file not found")
 var ErrDownloadRequestDownloadURLTimeout = errors.New("download request download url timeout, check velero server logs for errors. backup storage location may not be available")
 var unzipLimit int64 = 1024 * 1024 * 1024 // 1GB limit
 
+// ErrDownloadRequestFailed is returned when the server refused the request and gave no
+// reason. The controller sets a message in every path that fails today, so this is a
+// fallback rather than the usual case.
+var ErrDownloadRequestFailed = errors.New("download request failed, check velero server logs for errors")
+
 func Stream(
 	ctx context.Context,
 	kbClient kbclient.Client,
@@ -114,6 +119,16 @@ func getDownloadURL(
 
 			if updated.Status.DownloadURL != "" {
 				return updated.Status.DownloadURL, nil
+			}
+
+			// Failed is terminal. Waiting for a URL that will never be signed would end in
+			// ErrDownloadRequestDownloadURLTimeout, which blames the storage location for
+			// something the status already explains.
+			if updated.Status.Phase == veleroV1api.DownloadRequestPhaseFailed {
+				if updated.Status.Message != "" {
+					return "", errors.New(updated.Status.Message)
+				}
+				return "", ErrDownloadRequestFailed
 			}
 		}
 	}
