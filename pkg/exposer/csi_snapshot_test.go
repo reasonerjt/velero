@@ -47,6 +47,7 @@ import (
 	velerotypes "github.com/vmware-tanzu/velero/pkg/types"
 	"github.com/vmware-tanzu/velero/pkg/util"
 	"github.com/vmware-tanzu/velero/pkg/util/boolptr"
+	"github.com/vmware-tanzu/velero/pkg/util/csi"
 	"github.com/vmware-tanzu/velero/pkg/util/datamover"
 	"github.com/vmware-tanzu/velero/pkg/util/kube"
 )
@@ -1326,6 +1327,9 @@ func TestGetExpose(t *testing.T) {
 		Spec: corev1api.PersistentVolumeClaimSpec{
 			VolumeName: "fake-pv-name",
 		},
+		Status: corev1api.PersistentVolumeClaimStatus{
+			Phase: corev1api.ClaimBound,
+		},
 	}
 
 	backupPV := &corev1api.PersistentVolume{
@@ -2213,7 +2217,7 @@ func TestGetCBTInfo(t *testing.T) {
 		vsc           *snapshotv1api.VolumeSnapshotContent
 		pv            *corev1api.PersistentVolume
 		sourcePVName  string
-		want          cbtInfo
+		want          csi.CBTInfo
 		wantErrSubstr string
 	}{
 		{
@@ -2236,10 +2240,10 @@ func TestGetCBTInfo(t *testing.T) {
 			},
 			vsc:          &snapshotv1api.VolumeSnapshotContent{},
 			sourcePVName: "pv-ignored",
-			want: cbtInfo{
-				changeID:   "change-id-1",
-				volumeID:   "volume-id-1",
-				snapshotID: "vs-anno",
+			want: csi.CBTInfo{
+				ChangeID:   "change-id-1",
+				VolumeID:   "volume-id-1",
+				SnapshotID: "vs-anno",
 			},
 		},
 		{
@@ -2263,10 +2267,10 @@ func TestGetCBTInfo(t *testing.T) {
 				},
 			},
 			sourcePVName: "pv-1",
-			want: cbtInfo{
-				changeID:   "snapshot-handle-1",
-				volumeID:   "csi-volume-handle-1",
-				snapshotID: "vs-fallback",
+			want: csi.CBTInfo{
+				ChangeID:   "snapshot-handle-1",
+				VolumeID:   "csi-volume-handle-1",
+				SnapshotID: "vs-fallback",
 			},
 		},
 		{
@@ -2329,7 +2333,7 @@ func TestGetCBTInfo(t *testing.T) {
 				log:        logrus.StandardLogger(),
 			}
 
-			got, err := exposer.getCBTInfo(context.Background(), tc.vs, tc.vsc, tc.sourcePVName)
+			got, err := csi.GetCBTInfo(context.Background(), exposer.kubeClient, exposer.log, tc.vs, tc.vsc, tc.sourcePVName)
 
 			if tc.wantErrSubstr != "" {
 				if err == nil {
@@ -2344,8 +2348,8 @@ func TestGetCBTInfo(t *testing.T) {
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
-			if got.changeID != tc.want.changeID || got.volumeID != tc.want.volumeID || got.snapshotID != tc.want.snapshotID {
-				t.Fatalf("unexpected cbtInfo, want %+v, got %+v", tc.want, got)
+			if got.ChangeID != tc.want.ChangeID || got.VolumeID != tc.want.VolumeID || got.SnapshotID != tc.want.SnapshotID {
+				t.Fatalf("unexpected CBTInfo, want %+v, got %+v", tc.want, got)
 			}
 		})
 	}

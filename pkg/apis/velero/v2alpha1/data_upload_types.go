@@ -80,6 +80,10 @@ const (
 
 // CSISnapshotSpec is the specification for a CSI snapshot.
 type CSISnapshotSpec struct {
+	// VolumeSnapshotNamespace is the namespece of the volume snapshot to be backed up
+	// +optional
+	VolumeSnapshotNamespace string `json:"volumeSnapshotNamespace"`
+
 	// VolumeSnapshot is the name of the volume snapshot to be backed up
 	VolumeSnapshot string `json:"volumeSnapshot"`
 

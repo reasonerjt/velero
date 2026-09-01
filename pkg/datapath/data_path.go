@@ -63,6 +63,11 @@ type BackupStartParam struct {
 
 // RestoreStartParam define the input param for restore start
 type RestoreStartParam struct {
+	Incremental             bool
+	VolumeSnapshotNamespace string
+	VolumeSnapshotName      string
+	VolumeID                string
+	CBTService              cbtservice.Service
 }
 
 type generalDataPath struct {
@@ -235,6 +240,8 @@ func (dp *generalDataPath) StartRestore(snapshotID string, target AccessPoint, u
 
 	dp.wgDataPath.Add(1)
 
+	restoreParam := param.(*RestoreStartParam)
+
 	go func() {
 		dp.log.Info("Start data path restore")
 
@@ -243,7 +250,14 @@ func (dp *generalDataPath) StartRestore(snapshotID string, target AccessPoint, u
 			dp.wgDataPath.Done()
 		}()
 
-		totalBytes, err := dp.uploaderProv.RunRestore(dp.ctx, snapshotID, target.ByPath, target.VolMode, uploaderConfigs, dp)
+		incrementalBytes, totalBytes, err := dp.uploaderProv.RunRestore(dp.ctx, snapshotID, target.ByPath, restoreParam.Incremental,
+			provider.CBTParam{
+				Source: cbtservice.SourceInfo{
+					Snapshot: restoreParam.VolumeSnapshotName,
+					VolumeID: restoreParam.VolumeID,
+				},
+				Service: restoreParam.CBTService,
+			}, target.VolMode, uploaderConfigs, dp)
 
 		if err == provider.ErrorCanceled {
 			dp.callbacks.OnCancelled(context.Background(), dp.namespace, dp.jobName)
@@ -254,7 +268,7 @@ func (dp *generalDataPath) StartRestore(snapshotID string, target AccessPoint, u
 			}
 			dp.callbacks.OnFailed(context.Background(), dp.namespace, dp.jobName, dataPathErr)
 		} else {
-			dp.callbacks.OnCompleted(context.Background(), dp.namespace, dp.jobName, Result{Restore: RestoreResult{Target: target, TotalBytes: totalBytes}})
+			dp.callbacks.OnCompleted(context.Background(), dp.namespace, dp.jobName, Result{Restore: RestoreResult{Target: target, TotalBytes: totalBytes, IncrementalBytes: incrementalBytes}})
 		}
 	}()
 

@@ -110,6 +110,10 @@ spec:
                     description: VolumeSnapshot is the name of the volume snapshot
                       to be backed up
                     type: string
+                  volumeSnapshotNamespace:
+                    description: VolumeSnapshotNamespace is the namespece of the volume
+                      snapshot to be backed up
+                    type: string
                 required:
                 - storageClass
                 - volumeSnapshot

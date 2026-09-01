@@ -205,49 +205,75 @@ func getParentBackupInfo(ctx context.Context, rep udmrepo.BackupRepo, forceFull 
 }
 
 // Restore restore specific sourcePath with given snapshotID and update progress
-func Restore(ctx context.Context, blkUp Uploader, rep udmrepo.BackupRepo, snapshotID, dest string, uploaderCfg map[string]string, log logrus.FieldLogger) (int64, error) {
+func Restore(ctx context.Context, blkUp Uploader, rep udmrepo.BackupRepo, snapshotID, dest string, incremental bool, cbtSource cbtservice.SourceInfo, cbtService cbtservice.Service, uploaderCfg map[string]string, log logrus.FieldLogger) (int64, int64, error) {
 	log.Info("Start to restore...")
 
 	snapshot, err := rep.GetSnapshot(ctx, udmrepo.ID(snapshotID))
 	if err != nil {
-		return 0, errors.Wrapf(err, "Unable to load snapshot %v", snapshotID)
+		return 0, 0, errors.Wrapf(err, "Unable to load snapshot %v", snapshotID)
+	}
+	log.Infof("Restore from snapshot %s, incremental %v, cbt source %v, description %s, created time %v, tags %v", snapshotID, incremental, cbtSource, snapshot.Description, snapshot.EndTime, snapshot.Tags)
+
+	var volumeSnapshot, changeID, volumeID string
+	if incremental {
+		if snapshot.Tags == nil {
+			log.Warnf("No tag from snapshot %s, fallback to full restore", snapshotID)
+			incremental = false
+		} else if snapshot.Tags[uploader.CBTChangeIDTag] == "" {
+			log.Warnf("No ChangeID tag from snapshot %s, fallback to full restore", snapshotID)
+			incremental = false
+		} else if snapshot.Tags[uploader.CBTVolumeIDTag] == "" {
+			log.Warnf("No VolumeID tag from snapshot %s, fallback to full restore", snapshotID)
+			incremental = false
+		} else if snapshot.Tags[uploader.CBTVolumeIDTag] != cbtSource.VolumeID {
+			log.Warnf("VolumeID %s from snapshot %s is not expected as %s, fallback to full restore", snapshot.Tags[uploader.CBTVolumeIDTag], snapshotID, cbtSource.VolumeID)
+			incremental = false
+		} else {
+			volumeSnapshot = cbtSource.Snapshot
+			changeID = snapshot.Tags[uploader.CBTChangeIDTag]
+			volumeID = snapshot.Tags[uploader.CBTVolumeIDTag]
+		}
 	}
 
-	log.Infof("Restore from snapshot %s, description %s, created time %v, tags %v", snapshotID, snapshot.Description, snapshot.EndTime, snapshot.Tags)
-
-	bitmap := cbt.NewBitmap(blockSize, uint64(snapshot.TotalSize), "", "", "")
-	bitmap.SetFull()
+	bitmap := cbt.NewBitmap(blockSize, uint64(snapshot.TotalSize), volumeSnapshot, changeID, volumeID)
+	if incremental {
+		if err = cbt.SetBitmapOrFull(ctx, cbtService, bitmap); err != nil {
+			log.WithError(err).Warnf("Failed to create CBT with source %v, fallback to full restore", cbtSource)
+		}
+	} else {
+		bitmap.SetFull()
+	}
 
 	destPath, err := filepath.Abs(dest)
 	if err != nil {
-		return 0, errors.Wrapf(err, "invalid dest path '%s'", dest)
+		return 0, 0, errors.Wrapf(err, "invalid dest path '%s'", dest)
 	}
 
 	destPath = filepath.Clean(destPath)
 
 	destDev, err := openBlockDeviceFunc(destPath, false)
 	if err != nil {
-		return 0, errors.Wrapf(err, "error opening block device '%s'", destPath)
+		return 0, 0, errors.Wrapf(err, "error opening block device '%s'", destPath)
 	}
 
 	defer destDev.Close()
 
 	destSize, err := destDev.Seek(0, io.SeekEnd)
 	if err != nil {
-		return 0, errors.Wrapf(err, "error getting length of block device %s", dest)
+		return 0, 0, errors.Wrapf(err, "error getting length of block device %s", dest)
 	}
 
 	_, err = destDev.Seek(0, io.SeekStart)
 	if err != nil {
-		return 0, errors.Wrapf(err, "error reset pos of block device %s", dest)
+		return 0, 0, errors.Wrapf(err, "error reset pos of block device %s", dest)
 	}
 
-	_, totalSize, err := blkUp.Restore(snapshot, destInfo{dev: destDev, path: destPath, size: destSize}, bitmap.Iterator(), uploaderCfg)
+	incrementalBytes, totalSize, err := blkUp.Restore(snapshot, destInfo{dev: destDev, path: destPath, size: destSize}, bitmap.Iterator(), uploaderCfg)
 	if err != nil {
-		return 0, errors.Wrapf(err, "error restoring to block dev %s", destPath)
+		return 0, 0, errors.Wrapf(err, "error restoring to block dev %s", destPath)
 	}
 
-	return totalSize, nil
+	return incrementalBytes, totalSize, nil
 }
 
 func findPreviousSnapshot(ctx context.Context, rep udmrepo.BackupRepo, path string, snapshotTags map[string]string, noLaterThan *time.Time, log logrus.FieldLogger) (udmrepo.Snapshot, error) {

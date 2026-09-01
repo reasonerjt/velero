@@ -38,6 +38,7 @@ import (
 	"github.com/vmware-tanzu/velero/pkg/label"
 	"github.com/vmware-tanzu/velero/pkg/nodeagent"
 	"github.com/vmware-tanzu/velero/pkg/repository"
+	"github.com/vmware-tanzu/velero/pkg/restore/inplace"
 	uploaderutil "github.com/vmware-tanzu/velero/pkg/uploader/util"
 	"github.com/vmware-tanzu/velero/pkg/util/boolptr"
 	"github.com/vmware-tanzu/velero/pkg/util/kube"
@@ -179,6 +180,18 @@ func (r *restorer) RestorePodVolumes(data RestoreData, tracker *volume.RestoreVo
 			}
 		}
 
+		// Pre-flight checks for in-place restore. Pods gated by this
+		// restore's restore-wait init container are excluded: they must mount
+		// the PVC so the volume gets mounted on the node for the node-agent
+		// to write into, and they cannot write to it themselves until this
+		// restore's PodVolumeRestores complete.
+		if data.Restore.IsVolumeDataInplaceRestore() && pvc != nil {
+			if err := inplace.CheckPVCNotInUse(r.ctx, r.crClient, pvc, data.Restore.UID); err != nil {
+				errs = append(errs, err)
+				continue
+			}
+		}
+
 		volumeRestore := newPodVolumeRestore(data.Restore, data.Pod, data.BackupLocation, volume, backupInfo.snapshotID, backupInfo.snapshotSize, "", backupInfo.uploaderType, data.SourceNamespace, pvc)
 		if err := veleroclient.CreateRetryGenerateName(r.crClient, r.ctx, volumeRestore); err != nil {
 			errs = append(errs, errors.WithStack(err))
@@ -295,6 +308,10 @@ func newPodVolumeRestore(restore *velerov1api.Restore, pod *corev1api.Pod, backu
 
 	if restore.Spec.UploaderConfig != nil {
 		pvr.Spec.UploaderSettings = uploaderutil.StoreRestoreConfig(restore.Spec.UploaderConfig)
+	}
+
+	if restore.IsVolumeDataInplaceRestore() {
+		pvr.Spec.RestoreType = string(restore.Spec.ExistingVolumeDataPolicy)
 	}
 
 	return pvr

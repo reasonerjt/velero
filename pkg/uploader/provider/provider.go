@@ -64,9 +64,11 @@ type Provider interface {
 		ctx context.Context,
 		snapshotID string,
 		volumePath string,
+		incremental bool,
+		cbtParam CBTParam,
 		volMode uploader.PersistentVolumeMode,
 		uploaderConfig map[string]string,
-		updater uploader.ProgressUpdater) (int64, error)
+		updater uploader.ProgressUpdater) (int64, int64, error)
 	// Close which will close related repository
 	Close(ctx context.Context) error
 }

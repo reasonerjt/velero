@@ -211,9 +211,11 @@ func (kp *kopiaProvider) RunRestore(
 	ctx context.Context,
 	snapshotID string,
 	volumePath string,
+	incremental bool,
+	_ CBTParam,
 	volMode uploader.PersistentVolumeMode,
 	uploaderCfg map[string]string,
-	updater uploader.ProgressUpdater) (int64, error) {
+	updater uploader.ProgressUpdater) (int64, int64, error) {
 	log := kp.log.WithFields(logrus.Fields{
 		"snapshotID": snapshotID,
 		"volumePath": volumePath,
@@ -234,15 +236,15 @@ func (kp *kopiaProvider) RunRestore(
 	// We use the cancel channel to control the restore cancel, so don't pass a context with cancel to Kopia restore.
 	// Otherwise, Kopia restore will not response to the cancel control but return an arbitrary error.
 	// Kopia restore cancel is not designed as well as Kopia backup which uses the context to control backup cancel all the way.
-	size, fileCount, err := kopiaRestoreFunc(context.Background(), repoWriter, progress, snapshotID, volumePath, volMode, uploaderCfg, log, restoreCancel)
+	size, fileCount, err := kopiaRestoreFunc(context.Background(), repoWriter, progress, snapshotID, volumePath, incremental, volMode, uploaderCfg, log, restoreCancel)
 
 	if err != nil {
-		return 0, errors.Wrapf(err, "Failed to run kopia restore")
+		return 0, 0, errors.Wrapf(err, "Failed to run kopia restore")
 	}
 
 	if atomic.LoadInt32(&kp.canceling) == 1 {
 		log.Error("Kopia restore is canceled")
-		return 0, ErrorCanceled
+		return 0, 0, ErrorCanceled
 	}
 
 	// which ensure that the statistic data of TotalBytes equal to BytesDone when finished
@@ -255,5 +257,6 @@ func (kp *kopiaProvider) RunRestore(
 
 	log.Info(output)
 
-	return size, nil
+	// the incremental bytes is the same as the total bytes because total bytes is the size of actual data Kopia writes
+	return size, size, nil
 }
