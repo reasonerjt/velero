@@ -12,11 +12,13 @@ env:
 on:
   push:
   pull_request:
-    # Do not run when the change only includes these directories.
-    paths-ignore:
-      - "site/**"
-      - "design/**"
-      - "**/*.md"
+    # Only run when the change affects Go code or a workflow this job depends on.
+    paths:
+      - "**/*.go"
+      - "go.mod"
+      - "go.sum"
+      - ".github/workflows/e2e-test-kind.yaml"
+      - ".github/workflows/get-go-version.yaml"
 jobs:
   get-go-version:
     uses: ./.github/workflows/get-go-version.yaml

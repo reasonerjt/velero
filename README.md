@@ -30,9 +30,24 @@ Please use the version selector at the top of the site to ensure you are using t
 
 If you encounter issues, review the [troubleshooting docs][30], [file an issue][4], or talk to us on the [#velero channel][25] on the Kubernetes Slack server.
 
+## Community
+
+Velero is an open community and we welcome your participation. The best way to get involved is to join our bi-weekly community meetings:
+
+* Join the [Velero community meetings](https://velero.io/community/), held bi-weekly, alternating between Beijing-friendly and US/Europe-friendly time zones.
+* Subscribe to the [project meeting calendar](https://zoom-lfx.platform.linuxfoundation.org/meetings/velero?view=week).
+* Watch previous meetings on our [YouTube channel](https://www.youtube.com/playlist?list=PL7bmigfV0EqQRysvqvqOtRNk4L5S7uqwM).
+* Chat with us on the [Kubernetes Slack][25] `#velero` channel and join the [mailing list][24].
+
+See the [community page](https://velero.io/community/) for the full schedule and details.
+
 ## Contributing
 
 If you are ready to jump in and test, add code, or help with documentation, follow the instructions on our [Start contributing][31] documentation for guidance on how to setup Velero for development.
+
+## Governance
+
+Velero's [governance][32] describes how the project is run, including the decision-making process, the roles and responsibilities of maintainers, and how to become a maintainer. Governance applies across the Velero org and is maintained at [velero-io/.github][32].
 
 ## Changelog
 
@@ -87,4 +102,5 @@ For website terms of use, trademark policy and other project policies please see
 [29]: https://velero.io/docs/
 [30]: https://velero.io/docs/troubleshooting
 [31]: https://velero.io/docs/start-contributing
+[32]: https://github.com/velero-io/.github/blob/main/GOVERNANCE.md
 [100]: https://velero.io/docs/main/img/velero.png
