@@ -373,7 +373,7 @@ spec:
         ......
 ```
 
-At present, Velero doesn't allow to set `ReadOnlyRootFileSystem` parameter to data mover pods, so the root filesystem for the data mover pods are always writable.  
+At present, Velero doesn't allow setting the `ReadOnlyRootFileSystem` parameter on data mover pods, so the root filesystem for the data mover pods is always writable.  
 
 ### Resource Consumption
 

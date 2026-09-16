@@ -99,6 +99,10 @@ spec:
                   used to do the incremental restore.
                 nullable: true
                 properties:
+                  cleanUp:
+                    description: CleanUp indicates request to clean up the volume
+                      snapshot after the backup/restore is completed.
+                    type: boolean
                   driver:
                     description: Driver is the driver used by the VolumeSnapshotContent
                     type: string
@@ -213,6 +217,10 @@ spec:
                 format: date-time
                 nullable: true
                 type: string
+              fallbackFull:
+                description: FallbackFull indicates whether the incremental restore
+                  has fallen back to full restore
+                type: boolean
               incrementalBytes:
                 description: IncrementalBytes holds the number of bytes restored incrementally
                   since the last snapshot

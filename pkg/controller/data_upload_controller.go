@@ -42,7 +42,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	"github.com/vmware-tanzu/velero/pkg/apis/velero/shared"
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	velerov2alpha1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v2alpha1"
 	"github.com/vmware-tanzu/velero/pkg/constant"
@@ -87,6 +86,7 @@ type DataUploadReconciler struct {
 	podLabels                      map[string]string
 	podAnnotations                 map[string]string
 	snapshotMetadataServiceConfigs *velerotypes.CSISnapshotMetadataService
+	tolerations                    []corev1api.Toleration
 }
 
 func NewDataUploadReconciler(
@@ -108,6 +108,7 @@ func NewDataUploadReconciler(
 	podLabels map[string]string,
 	podAnnotations map[string]string,
 	snapshotMetadataServiceConfigs *velerotypes.CSISnapshotMetadataService,
+	tolerations []corev1api.Toleration,
 ) *DataUploadReconciler {
 	return &DataUploadReconciler{
 		client:            client,
@@ -135,6 +136,7 @@ func NewDataUploadReconciler(
 		podLabels:                      podLabels,
 		podAnnotations:                 podAnnotations,
 		snapshotMetadataServiceConfigs: snapshotMetadataServiceConfigs,
+		tolerations:                    tolerations,
 	}
 }
 
@@ -514,6 +516,9 @@ func (r *DataUploadReconciler) OnDataUploadCompleted(ctx context.Context, namesp
 		du.Status.Phase = velerov2alpha1api.DataUploadPhaseCompleted
 		du.Status.SnapshotID = result.Backup.SnapshotID
 		du.Status.IncrementalBytes = result.Backup.IncrementalBytes
+		du.Status.SourceSize = result.Backup.SourceSize
+		du.Status.FallbackFull = result.Backup.FallbackFull
+
 		du.Status.CompletionTimestamp = &metav1.Time{Time: r.Clock.Now()}
 		if result.Backup.EmptySnapshot {
 			du.Status.Message = "volume was empty so no data was upload"
@@ -634,7 +639,21 @@ func (r *DataUploadReconciler) OnDataUploadProgress(ctx context.Context, namespa
 	log := r.logger.WithField("dataupload", duName)
 
 	if err := UpdateDataUploadWithRetry(ctx, r.client, types.NamespacedName{Namespace: namespace, Name: duName}, log, func(du *velerov2alpha1api.DataUpload) bool {
-		du.Status.Progress = shared.DataMoveOperationProgress{TotalBytes: progress.TotalBytes, BytesDone: progress.BytesDone}
+		if progress.TotalBytes != -1 {
+			du.Status.Progress.TotalBytes = progress.TotalBytes
+		}
+
+		if progress.BytesDone != -1 {
+			du.Status.Progress.BytesDone = progress.BytesDone
+		}
+
+		if progress.Message != "" {
+			message := progress.Message + ";"
+			if !strings.HasSuffix(du.Status.Message, message) {
+				du.Status.Message += message
+			}
+		}
+
 		return true
 	}); err != nil {
 		log.WithError(err).Error("Failed to update progress")
@@ -994,15 +1013,9 @@ func (r *DataUploadReconciler) setupExposeParam(du *velerov2alpha1api.DataUpload
 			}
 		}
 
-		hostingPodTolerations := []corev1api.Toleration{}
-		for _, k := range util.ThirdPartyTolerations {
-			if v, err := nodeagent.GetToleration(context.Background(), r.kubeClient, du.Namespace, k, nodeOS); err != nil {
-				if err != nodeagent.ErrNodeAgentTolerationNotFound {
-					log.WithError(err).Warnf("Failed to check node-agent toleration, skip adding host pod toleration %s", k)
-				}
-			} else {
-				hostingPodTolerations = append(hostingPodTolerations, *v)
-			}
+		hostingPodTolerations, err := nodeagent.GetTolerations(context.Background(), r.kubeClient, du.Namespace, nodeOS, r.tolerations)
+		if err != nil {
+			log.WithError(err).Warn("Failed to get node-agent daemonset tolerations, hosting pod will only get configured tolerations")
 		}
 
 		return &exposer.CSISnapshotExposeParam{

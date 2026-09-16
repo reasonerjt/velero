@@ -148,6 +148,24 @@ func (d *DataDownloadBuilder) Progress(progress shared.DataMoveOperationProgress
 	return d
 }
 
+// TotalBytes sets the DataDownload's TotalBytes.
+func (d *DataDownloadBuilder) TotalBytes(totalBytes int64) *DataDownloadBuilder {
+	d.object.Status.Progress.TotalBytes = totalBytes
+	return d
+}
+
+// IncrementalBytes sets the DataDownload's IncrementalBytes.
+func (d *DataDownloadBuilder) IncrementalBytes(incrementalBytes int64) *DataDownloadBuilder {
+	d.object.Status.IncrementalBytes = &incrementalBytes
+	return d
+}
+
+// FallbackFull sets the DataDownload's FallbackFull status.
+func (d *DataDownloadBuilder) FallbackFull(fallbackFull bool) *DataDownloadBuilder {
+	d.object.Status.FallbackFull = fallbackFull
+	return d
+}
+
 // Node sets the DataDownload's Node.
 func (d *DataDownloadBuilder) Node(node string) *DataDownloadBuilder {
 	d.object.Status.Node = node

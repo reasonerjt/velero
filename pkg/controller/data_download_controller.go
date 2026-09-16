@@ -42,7 +42,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	"github.com/vmware-tanzu/velero/pkg/apis/velero/shared"
 	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
 	velerov2alpha1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v2alpha1"
 	"github.com/vmware-tanzu/velero/pkg/constant"
@@ -82,6 +81,7 @@ type DataDownloadReconciler struct {
 	podLabels                      map[string]string
 	podAnnotations                 map[string]string
 	snapshotMetadataServiceConfigs *velerotypes.CSISnapshotMetadataService
+	tolerations                    []corev1api.Toleration
 }
 
 func NewDataDownloadReconciler(
@@ -104,6 +104,7 @@ func NewDataDownloadReconciler(
 	podLabels map[string]string,
 	podAnnotations map[string]string,
 	snapshotMetadataServiceConfigs *velerotypes.CSISnapshotMetadataService,
+	tolerations []corev1api.Toleration,
 ) *DataDownloadReconciler {
 	return &DataDownloadReconciler{
 		client:                         client,
@@ -127,6 +128,7 @@ func NewDataDownloadReconciler(
 		podLabels:                      podLabels,
 		podAnnotations:                 podAnnotations,
 		snapshotMetadataServiceConfigs: snapshotMetadataServiceConfigs,
+		tolerations:                    tolerations,
 	}
 }
 
@@ -503,6 +505,7 @@ func (r *DataDownloadReconciler) OnDataDownloadCompleted(ctx context.Context, na
 
 		dd.Status.Phase = velerov2alpha1api.DataDownloadPhaseCompleted
 		dd.Status.IncrementalBytes = ptr.To(result.Restore.IncrementalBytes)
+		dd.Status.FallbackFull = result.Restore.FallbackFull
 		dd.Status.CompletionTimestamp = &metav1.Time{Time: r.Clock.Now()}
 
 		delete(dd.Labels, exposer.ExposeOnGoingLabel)
@@ -609,7 +612,21 @@ func (r *DataDownloadReconciler) OnDataDownloadProgress(ctx context.Context, nam
 	log := r.logger.WithField("datadownload", ddName)
 
 	if err := UpdateDataDownloadWithRetry(ctx, r.client, types.NamespacedName{Namespace: namespace, Name: ddName}, log, func(dd *velerov2alpha1api.DataDownload) bool {
-		dd.Status.Progress = shared.DataMoveOperationProgress{TotalBytes: progress.TotalBytes, BytesDone: progress.BytesDone}
+		if progress.TotalBytes != -1 {
+			dd.Status.Progress.TotalBytes = progress.TotalBytes
+		}
+
+		if progress.BytesDone != -1 {
+			dd.Status.Progress.BytesDone = progress.BytesDone
+		}
+
+		if progress.Message != "" {
+			message := progress.Message + ";"
+			if !strings.HasSuffix(dd.Status.Message, message) {
+				dd.Status.Message += message
+			}
+		}
+
 		return true
 	}); err != nil {
 		log.WithError(err).Error("Failed to update progress")
@@ -926,15 +943,9 @@ func (r *DataDownloadReconciler) setupExposeParam(dd *velerov2alpha1api.DataDown
 		}
 	}
 
-	hostingPodTolerations := []corev1api.Toleration{}
-	for _, k := range util.ThirdPartyTolerations {
-		if v, err := nodeagent.GetToleration(context.Background(), r.kubeClient, dd.Namespace, k, nodeOS); err != nil {
-			if err != nodeagent.ErrNodeAgentTolerationNotFound {
-				log.WithError(err).Warnf("Failed to check node-agent toleration, skip adding host pod toleration %s", k)
-			}
-		} else {
-			hostingPodTolerations = append(hostingPodTolerations, *v)
-		}
+	hostingPodTolerations, err := nodeagent.GetTolerations(context.Background(), r.kubeClient, dd.Namespace, nodeOS, r.tolerations)
+	if err != nil {
+		log.WithError(err).Warn("Failed to get node-agent daemonset tolerations, hosting pod will only get configured tolerations")
 	}
 
 	var cacheVolume *exposer.CacheConfigs

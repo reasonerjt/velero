@@ -22,6 +22,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1api "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -82,10 +83,16 @@ func TestCheckPVCNotInUse(t *testing.T) {
 	tests := []struct {
 		name          string
 		pods          []*corev1api.Pod
+		pvc           *corev1api.PersistentVolumeClaim
 		restoreUID    types.UID
 		expectPass    bool
 		expectMessage []string
+		expectError   string
 	}{
+		{
+			name:        "nil PVC returns error",
+			expectError: "pvc cannot be nil",
+		},
 		{
 			name:       "no pods, check passes",
 			expectPass: true,
@@ -183,11 +190,19 @@ func TestCheckPVCNotInUse(t *testing.T) {
 			}
 			cli := velerotest.NewFakeControllerRuntimeClient(t, objs...)
 
-			pvc := &corev1api.PersistentVolumeClaim{
-				ObjectMeta: metav1.ObjectMeta{Name: "pvc-1", Namespace: "default"},
+			pvc := tc.pvc
+			if pvc == nil && tc.name != "nil PVC returns error" {
+				pvc = &corev1api.PersistentVolumeClaim{
+					ObjectMeta: metav1.ObjectMeta{Name: "pvc-1", Namespace: "default"},
+				}
 			}
 
 			err := CheckPVCNotInUse(t.Context(), cli, pvc, tc.restoreUID)
+			if tc.expectError != "" {
+				require.Error(t, err)
+				assert.EqualError(t, err, tc.expectError)
+				return
+			}
 			if tc.expectPass {
 				require.NoError(t, err)
 				return
@@ -216,6 +231,12 @@ func TestCheckPVCBoundToBackedUpPV(t *testing.T) {
 		backedUpPVName string
 		expectError    string
 	}{
+		{
+			name:           "nil existing PVC returns error",
+			existingPVC:    nil,
+			backedUpPVName: "pv-1",
+			expectError:    "existing PVC cannot be nil",
+		},
 		{
 			name:           "bound to the backed-up PV, check passes",
 			existingPVC:    pvc("default", "pv-1", corev1api.ClaimBound),
@@ -254,6 +275,70 @@ func TestCheckPVCBoundToBackedUpPV(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			err := CheckPVCBoundToBackedUpPV(tc.existingPVC, tc.backedUpPVName, "default")
+			if tc.expectError == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tc.expectError)
+		})
+	}
+}
+
+func TestCheckPVCCapacity(t *testing.T) {
+	pvc := func(capacity string) *corev1api.PersistentVolumeClaim {
+		p := &corev1api.PersistentVolumeClaim{
+			ObjectMeta: metav1.ObjectMeta{Name: "pvc-1", Namespace: "default"},
+		}
+		if capacity != "" {
+			p.Status.Capacity = corev1api.ResourceList{corev1api.ResourceStorage: resource.MustParse(capacity)}
+		}
+		return p
+	}
+	const mi = int64(1 << 20)
+
+	tests := []struct {
+		name        string
+		existingPVC *corev1api.PersistentVolumeClaim
+		sourceSize  int64
+		expectError string
+	}{
+		{
+			name:        "capacity larger than source volume, check passes",
+			existingPVC: pvc("100Mi"),
+			sourceSize:  50 * mi,
+		},
+		{
+			name:        "capacity equal to source volume, check passes",
+			existingPVC: pvc("100Mi"),
+			sourceSize:  100 * mi,
+		},
+		{
+			name:        "capacity smaller than source volume, check fails",
+			existingPVC: pvc("50Mi"),
+			sourceSize:  100 * mi,
+			expectError: "capacity 50Mi is smaller than the backed-up volume size 104857600 bytes",
+		},
+		{
+			name:        "unknown source size is skipped",
+			existingPVC: pvc("50Mi"),
+			sourceSize:  0,
+		},
+		{
+			name:        "missing capacity is skipped",
+			existingPVC: pvc(""),
+			sourceSize:  100 * mi,
+		},
+		{
+			name:        "capacity in decimal units compares by value",
+			existingPVC: pvc("104857600"),
+			sourceSize:  100 * mi,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := CheckPVCCapacity(tc.existingPVC, tc.sourceSize)
 			if tc.expectError == "" {
 				require.NoError(t, err)
 				return

@@ -454,6 +454,99 @@ func TestRestoreResourceFiltering(t *testing.T) {
 			},
 		},
 		{
+			name: "notin label selector excludes matching resources",
+			restore: defaultRestore().LabelSelector(&metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{
+				{Key: "pr-label", Operator: metav1.LabelSelectorOpNotIn, Values: []string{"1"}},
+			}}).Result(),
+			backup: defaultBackup().Result(),
+			tarball: test.NewTarWriter(t).
+				AddItems("pods",
+					builder.ForPod("ns-1", "pod-1").ObjectMeta(builder.WithLabels("pr-label", "1")).Result(),
+					builder.ForPod("ns-2", "pod-2").Result(),
+				).
+				AddItems("deployments.apps",
+					builder.ForDeployment("ns-1", "deploy-1").Result(),
+					builder.ForDeployment("ns-2", "deploy-2").ObjectMeta(builder.WithLabels("pr-label", "1")).Result(),
+				).
+				AddItems("persistentvolumes",
+					builder.ForPersistentVolume("pv-1").ObjectMeta(builder.WithLabels("pr-label", "1")).Result(),
+					builder.ForPersistentVolume("pv-2").ObjectMeta(builder.WithLabels("pr-label", "2")).Result(),
+				).
+				Done(),
+			apiResources: []*test.APIResource{
+				test.Pods(),
+				test.Deployments(),
+				test.PVs(),
+			},
+			want: map[*test.APIResource][]string{
+				test.Pods():        {"ns-2/pod-2"},
+				test.Deployments(): {"ns-1/deploy-1"},
+				test.PVs():         {"/pv-2"},
+			},
+		},
+		{
+			name: "in label selector only restores matching resources",
+			restore: defaultRestore().LabelSelector(&metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{
+				{Key: "pr-label", Operator: metav1.LabelSelectorOpIn, Values: []string{"1", "2"}},
+			}}).Result(),
+			backup: defaultBackup().Result(),
+			tarball: test.NewTarWriter(t).
+				AddItems("pods",
+					builder.ForPod("ns-1", "pod-1").ObjectMeta(builder.WithLabels("pr-label", "1")).Result(),
+					builder.ForPod("ns-2", "pod-2").ObjectMeta(builder.WithLabels("pr-label", "3")).Result(),
+				).
+				AddItems("deployments.apps",
+					builder.ForDeployment("ns-1", "deploy-1").Result(),
+					builder.ForDeployment("ns-2", "deploy-2").ObjectMeta(builder.WithLabels("pr-label", "2")).Result(),
+				).
+				AddItems("persistentvolumes",
+					builder.ForPersistentVolume("pv-1").ObjectMeta(builder.WithLabels("pr-label", "2")).Result(),
+					builder.ForPersistentVolume("pv-2").Result(),
+				).
+				Done(),
+			apiResources: []*test.APIResource{
+				test.Pods(),
+				test.Deployments(),
+				test.PVs(),
+			},
+			want: map[*test.APIResource][]string{
+				test.Pods():        {"ns-1/pod-1"},
+				test.Deployments(): {"ns-2/deploy-2"},
+				test.PVs():         {"/pv-1"},
+			},
+		},
+		{
+			name: "doesnotexist label selector only restores resources without the label key",
+			restore: defaultRestore().LabelSelector(&metav1.LabelSelector{MatchExpressions: []metav1.LabelSelectorRequirement{
+				{Key: "pr-label", Operator: metav1.LabelSelectorOpDoesNotExist},
+			}}).Result(),
+			backup: defaultBackup().Result(),
+			tarball: test.NewTarWriter(t).
+				AddItems("pods",
+					builder.ForPod("ns-1", "pod-1").ObjectMeta(builder.WithLabels("pr-label", "1")).Result(),
+					builder.ForPod("ns-2", "pod-2").Result(),
+				).
+				AddItems("deployments.apps",
+					builder.ForDeployment("ns-1", "deploy-1").Result(),
+					builder.ForDeployment("ns-2", "deploy-2").ObjectMeta(builder.WithLabels("pr-label", "2")).Result(),
+				).
+				AddItems("persistentvolumes",
+					builder.ForPersistentVolume("pv-1").ObjectMeta(builder.WithLabels("other-label", "x")).Result(),
+					builder.ForPersistentVolume("pv-2").ObjectMeta(builder.WithLabels("pr-label", "1")).Result(),
+				).
+				Done(),
+			apiResources: []*test.APIResource{
+				test.Pods(),
+				test.Deployments(),
+				test.PVs(),
+			},
+			want: map[*test.APIResource][]string{
+				test.Pods():        {"ns-2/pod-2"},
+				test.Deployments(): {"ns-1/deploy-1"},
+				test.PVs():         {"/pv-1"},
+			},
+		},
+		{
 			name: "OrLabelSelectors only restores matching resources",
 			restore: defaultRestore().OrLabelSelector([]*metav1.LabelSelector{{MatchLabels: map[string]string{"a1": "b1"}}, {MatchLabels: map[string]string{"a2": "b2"}},
 				{MatchLabels: map[string]string{"a3": "b3"}}, {MatchLabels: map[string]string{"a4": "b4"}}}).Result(),
@@ -5159,4 +5252,85 @@ func TestHasPodVolumeBackup(t *testing.T) {
 			assert.Equal(t, tc.expected, result)
 		})
 	}
+}
+
+func TestRestoreInplaceSourceSizeCarrierAnnotation(t *testing.T) {
+	newRequest := func(t *testing.T, h *harness, volumeInfos map[string]volume.BackupVolumeInfo) *Request {
+		t.Helper()
+		return &Request{
+			Log:     h.log,
+			Restore: defaultRestore().Result(),
+			Backup:  defaultBackup().Result(),
+			BackupReader: test.NewTarWriter(t).
+				AddItems("persistentvolumeclaims", builder.ForPersistentVolumeClaim("ns-1", "pvc-1").VolumeName("pv-1").Result()).
+				Done(),
+			BackupVolumeInfoMap: volumeInfos,
+		}
+	}
+
+	// captureCarrier records the source-size carrier the RIA sees on the item.
+	captureCarrier := func(seen *string) riav2.RestoreItemAction {
+		return &pluggableAction{
+			executeFunc: func(input *velero.RestoreItemActionExecuteInput) (*velero.RestoreItemActionExecuteOutput, error) {
+				item := input.Item.(*unstructured.Unstructured)
+				*seen = item.GetAnnotations()[velerov1api.InplaceRestoreSourceSizeAnnotation]
+				return &velero.RestoreItemActionExecuteOutput{UpdatedItem: item}, nil
+			},
+		}
+	}
+
+	t.Run("source size from volume info is carried to RIAs and stripped from the cluster object", func(t *testing.T) {
+		h := newHarness(t)
+		h.AddItems(t, test.PVCs())
+		var seen string
+
+		warnings, errs := h.restorer.Restore(
+			newRequest(t, h, map[string]volume.BackupVolumeInfo{
+				"pv-1": {PVCNamespace: "ns-1", PVCName: "pvc-1", PVBInfo: &volume.PodVolumeBackupInfo{SourceSize: 31457288}},
+			}),
+			[]riav2.RestoreItemAction{captureCarrier(&seen)},
+			nil,
+		)
+		assertEmptyResults(t, warnings, errs)
+		assert.Equal(t, "31457288", seen)
+
+		got, err := h.DynamicClient.Resource(test.PVCs().GVR()).Namespace("ns-1").Get(t.Context(), "pvc-1", metav1.GetOptions{})
+		require.NoError(t, err)
+		assert.NotContains(t, got.GetAnnotations(), velerov1api.InplaceRestoreSourceSizeAnnotation)
+	})
+
+	t.Run("no carrier when the volume info has no source size", func(t *testing.T) {
+		h := newHarness(t)
+		h.AddItems(t, test.PVCs())
+		var seen string
+
+		warnings, errs := h.restorer.Restore(
+			newRequest(t, h, map[string]volume.BackupVolumeInfo{
+				"pv-1": {PVCNamespace: "ns-1", PVCName: "pvc-1", PVBInfo: &volume.PodVolumeBackupInfo{}},
+			}),
+			[]riav2.RestoreItemAction{captureCarrier(&seen)},
+			nil,
+		)
+		assertEmptyResults(t, warnings, errs)
+		assert.Empty(t, seen)
+	})
+
+	t.Run("stale carrier from the backup metadata is not trusted", func(t *testing.T) {
+		h := newHarness(t)
+		h.AddItems(t, test.PVCs())
+		var seen string
+
+		req := newRequest(t, h, nil)
+		req.BackupReader = test.NewTarWriter(t).
+			AddItems("persistentvolumeclaims", builder.ForPersistentVolumeClaim("ns-1", "pvc-1").
+				ObjectMeta(builder.WithAnnotations(velerov1api.InplaceRestoreSourceSizeAnnotation, "999")).Result()).
+			Done()
+		warnings, errs := h.restorer.Restore(req, []riav2.RestoreItemAction{captureCarrier(&seen)}, nil)
+		assertEmptyResults(t, warnings, errs)
+		assert.Empty(t, seen)
+
+		got, err := h.DynamicClient.Resource(test.PVCs().GVR()).Namespace("ns-1").Get(t.Context(), "pvc-1", metav1.GetOptions{})
+		require.NoError(t, err)
+		assert.NotContains(t, got.GetAnnotations(), velerov1api.InplaceRestoreSourceSizeAnnotation)
+	})
 }
