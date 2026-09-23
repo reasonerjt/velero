@@ -666,7 +666,7 @@ func TestOnPVBProgress(t *testing.T) {
 			progress := &test.progress
 
 			r.OnDataPathProgress(ctx, namespace, pvbName, progress)
-			if len(test.needErrs) != 0 && !test.needErrs[0] {
+			if len(test.needErrs) == 0 {
 				updatedPvb := &velerov1api.PodVolumeBackup{}
 				require.NoError(t, r.client.Get(ctx, types.NamespacedName{Name: pvbName, Namespace: namespace}, updatedPvb))
 				if progress.TotalBytes != -1 {
@@ -680,7 +680,12 @@ func TestOnPVBProgress(t *testing.T) {
 					assert.Equal(t, int64(0), updatedPvb.Status.Progress.BytesDone) // assuming default or original value
 				}
 				if progress.Message != "" {
-					assert.Contains(t, updatedPvb.Status.Message, progress.Message)
+					assert.Contains(t, updatedPvb.Status.Activities, progress.Message)
+
+					// Call with the same message again to verify deduplication
+					r.OnDataPathProgress(ctx, namespace, pvbName, progress)
+					require.NoError(t, r.client.Get(ctx, types.NamespacedName{Name: pvbName, Namespace: namespace}, updatedPvb))
+					assert.Equal(t, []string{progress.Message}, updatedPvb.Status.Activities)
 				}
 			}
 		})

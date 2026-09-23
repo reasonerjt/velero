@@ -829,7 +829,7 @@ func TestOnDataDownloadProgress(t *testing.T) {
 
 			// Call the OnDataDownloadProgress function
 			r.OnDataDownloadProgress(ctx, namespace, duName, progress)
-			if len(test.needErrs) != 0 && !test.needErrs[0] {
+			if len(test.needErrs) == 0 {
 				// Get the updated DataDownload object from the fake client
 				updatedDd := &velerov2alpha1api.DataDownload{}
 				require.NoError(t, r.client.Get(ctx, types.NamespacedName{Name: duName, Namespace: namespace}, updatedDd))
@@ -845,7 +845,12 @@ func TestOnDataDownloadProgress(t *testing.T) {
 					assert.Equal(t, int64(0), updatedDd.Status.Progress.BytesDone) // assuming default or original value
 				}
 				if progress.Message != "" {
-					assert.Contains(t, updatedDd.Status.Message, progress.Message)
+					assert.Contains(t, updatedDd.Status.Activities, progress.Message)
+
+					// Call with the same message again to verify deduplication
+					r.OnDataDownloadProgress(ctx, namespace, duName, progress)
+					require.NoError(t, r.client.Get(ctx, types.NamespacedName{Name: duName, Namespace: namespace}, updatedDd))
+					assert.Equal(t, []string{progress.Message}, updatedDd.Status.Activities)
 				}
 			}
 		})

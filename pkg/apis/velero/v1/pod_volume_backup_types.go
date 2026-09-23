@@ -98,7 +98,7 @@ type PodVolumeBackupStatus struct {
 	// +optional
 	SnapshotID string `json:"snapshotID,omitempty"`
 
-	// Message is a message about the pod volume backup's status.
+	// Message is a message describing the pod volume backup when it reaches to a terminal status.
 	// +optional
 	Message string `json:"message,omitempty"`
 
@@ -144,6 +144,11 @@ type PodVolumeBackupStatus struct {
 
 	// FallbackFull indicates whether the incremental backup has fallen back to full backup
 	FallbackFull bool `json:"fallbackFull,omitempty"`
+
+	// Activities contains one or more messages about what have been done for this pod volume backup.
+	// +optional
+	// +nullable
+	Activities []string `json:"activities,omitempty"`
 }
 
 // TODO(2.0) After converting all resources to use the runttime-controller client,

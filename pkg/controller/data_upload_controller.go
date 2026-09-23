@@ -648,9 +648,8 @@ func (r *DataUploadReconciler) OnDataUploadProgress(ctx context.Context, namespa
 		}
 
 		if progress.Message != "" {
-			message := progress.Message + ";"
-			if !strings.HasSuffix(du.Status.Message, message) {
-				du.Status.Message += message
+			if len(du.Status.Activities) == 0 || du.Status.Activities[len(du.Status.Activities)-1] != progress.Message {
+				du.Status.Activities = append(du.Status.Activities, progress.Message)
 			}
 		}
 
