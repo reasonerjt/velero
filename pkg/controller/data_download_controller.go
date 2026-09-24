@@ -621,9 +621,8 @@ func (r *DataDownloadReconciler) OnDataDownloadProgress(ctx context.Context, nam
 		}
 
 		if progress.Message != "" {
-			message := progress.Message + ";"
-			if !strings.HasSuffix(dd.Status.Message, message) {
-				dd.Status.Message += message
+			if len(dd.Status.Activities) == 0 || dd.Status.Activities[len(dd.Status.Activities)-1] != progress.Message {
+				dd.Status.Activities = append(dd.Status.Activities, progress.Message)
 			}
 		}
 

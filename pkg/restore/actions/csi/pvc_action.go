@@ -244,10 +244,9 @@ func (p *pvcRestoreItemAction) executeWithDataMove(logger *logrus.Entry, input *
 
 	var volumeSnapshot *snapshotv1api.VolumeSnapshot
 	cleanUpVolumeSnapshot := false
-	restoreType := input.Restore.Spec.ExistingVolumeDataPolicy
 	if pvcExists {
 		// Pre-flight checks must pass before any side effect on the existing PVC/PV.
-		if err := inplace.CheckPVCBoundToBackedUpPV(existingPVC, pvcFromBackup.Spec.VolumeName, pvcFromBackup.Namespace); err != nil {
+		if err := inplace.CheckPVCBoundToBackedUpVolume(ctx, p.crClient, existingPVC, pvcFromBackup.Spec.VolumeName, pvc.Annotations[velerov1api.InplaceRestoreVolumeHandleAnnotation], pvcFromBackup.Namespace); err != nil {
 			return nil, errors.WithStack(err)
 		}
 		if err := inplace.CheckPVCCapacity(existingPVC, sourceSizeFromCarrier(pvc)); err != nil {
@@ -264,8 +263,7 @@ func (p *pvcRestoreItemAction) executeWithDataMove(logger *logrus.Entry, input *
 				logger.Info("requesting an in-place incremental restore with block data mover, taking a CSI snapshot of the existing PVC as the baseline of CBT...")
 				volumeSnapshot, err = p.createVolumeSnapshot(ctx, logger, input.Restore, *existingPVC, dataUploadResult.SnapshotClass, input.Restore.Spec.CSISnapshotTimeout.Duration)
 				if err != nil {
-					logger.Warnf("fail to create VolumeSnapshot for existing PVC %s/%s: %s, fallback to in-place full restore", existingPVC.Namespace, existingPVC.Name, err.Error())
-					restoreType = velerov1api.VolumeDataPolicyTypeFull
+					logger.Warnf("Fail to create VolumeSnapshot for existing PVC %s/%s: %s, incremental restore will be suppressed", existingPVC.Namespace, existingPVC.Name, err.Error())
 				} else {
 					cleanUpVolumeSnapshot = true
 					defer func() {
@@ -304,7 +302,7 @@ func (p *pvcRestoreItemAction) executeWithDataMove(logger *logrus.Entry, input *
 	var dataDownload *velerov2alpha1.DataDownload
 	dataDownload, err = restoreFromDataUploadResult(
 		ctx, dataUploadResult, input.Restore, backup, pvc, existingPV, newNamespace,
-		operationID, string(restoreType), volumeSnapshot, cleanUpVolumeSnapshot, p.crClient)
+		operationID, string(input.Restore.Spec.ExistingVolumeDataPolicy), volumeSnapshot, cleanUpVolumeSnapshot, p.crClient)
 	if err != nil {
 		logger.Errorf("Failed to restore from DataUploadResult: %s", err.Error())
 		return nil, errors.WithStack(err)

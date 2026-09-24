@@ -532,7 +532,7 @@ func TestExecute(t *testing.T) {
 					ObjectMeta(builder.WithOwnerReference([]metav1.OwnerReference{{APIVersion: velerov1api.SchemeGroupVersion.String(), Kind: "Restore", Name: "testRestore", UID: "uid", Controller: boolptr.True()}}),
 						builder.WithLabelsMap(map[string]string{velerov1api.AsyncOperationIDLabel: "dd-uid.", velerov1api.RestoreNameLabel: "testRestore", velerov1api.RestoreUIDLabel: "uid"}),
 						builder.WithGenerateName("testRestore-")).Result()
-				d.Spec.RestoreType = "full"
+				d.Spec.RestoreType = "incremental"
 				d.Spec.DataMover = "velero-block"
 				return d
 			}(),
@@ -843,12 +843,14 @@ func TestExecuteInplaceRestorePreflight(t *testing.T) {
 	}
 
 	tests := []struct {
-		name           string
-		pod            *corev1api.Pod
-		backedUpPVName string
-		sourceSize     string // carried on the PVC item by the restore engine
-		pvcCapacity    string
-		expectBlock    string
+		name             string
+		pod              *corev1api.Pod
+		backedUpPVName   string
+		backedUpHandle   string // carried on the PVC item by the restore engine
+		existingPVHandle string // CSI volume handle of the PV bound to the existing PVC
+		sourceSize       string // carried on the PVC item by the restore engine
+		pvcCapacity      string
+		expectBlock      string
 	}{
 		{
 			name:           "checks pass, restore proceeds",
@@ -864,6 +866,22 @@ func TestExecuteInplaceRestorePreflight(t *testing.T) {
 			name:           "PVC bound to a different PV blocks the restore",
 			backedUpPVName: "backupPV",
 			expectBlock:    "was bound to PV backupPV at backup time",
+		},
+		{
+			// The PV was recreated under a new name by a previous in-place
+			// restore (block data mover on a file system volume) but is the
+			// same CSI volume.
+			name:             "PVC bound to the backed-up volume under a recreated PV name proceeds",
+			backedUpPVName:   "backupPV",
+			backedUpHandle:   "vol-1",
+			existingPVHandle: "vol-1",
+		},
+		{
+			name:             "PVC bound to a different CSI volume under the same PV name blocks the restore",
+			backedUpPVName:   "testPV",
+			backedUpHandle:   "vol-1",
+			existingPVHandle: "vol-other",
+			expectBlock:      "is bound to volume vol-other (PV testPV), but was bound to volume vol-1 (PV testPV) at backup time",
 		},
 		{
 			// Backed-up PV unknown so the same-volume skip does not apply.
@@ -887,6 +905,9 @@ func TestExecuteInplaceRestorePreflight(t *testing.T) {
 				existingPVC.Status.Capacity = corev1api.ResourceList{corev1api.ResourceStorage: resource.MustParse(tc.pvcCapacity)}
 			}
 			existingPV := builder.ForPersistentVolume("testPV").Result()
+			if tc.existingPVHandle != "" {
+				existingPV.Spec.CSI = &corev1api.CSIPersistentVolumeSource{Driver: "fake.csi", VolumeHandle: tc.existingPVHandle}
+			}
 			backup := builder.ForBackup("velero", "testBackup").SnapshotMoveData(true).Result()
 			restore := builder.ForRestore("velero", "testRestore").Backup("testBackup").
 				ObjectMeta(builder.WithUID("uid")).ExistingVolumeDataPolicy("full").Result()
@@ -919,6 +940,9 @@ func TestExecuteInplaceRestorePreflight(t *testing.T) {
 			item := pvcFromBackup.DeepCopy()
 			if tc.sourceSize != "" {
 				item.Annotations[velerov1api.InplaceRestoreSourceSizeAnnotation] = tc.sourceSize
+			}
+			if tc.backedUpHandle != "" {
+				item.Annotations[velerov1api.InplaceRestoreVolumeHandleAnnotation] = tc.backedUpHandle
 			}
 			pvcMap, err := runtime.DefaultUnstructuredConverter.ToUnstructured(item)
 			require.NoError(t, err)

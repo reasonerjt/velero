@@ -21,11 +21,16 @@ spec:
       jsonPath: .status.phase
       name: Status
       type: string
-    - description: Restore type such as Full/Incremental
+    - description: Requested restore type such as Full/Incremental
       jsonPath: .spec.restoreType
-      name: Restore Type
+      name: Requested Restore Type
       priority: 10
       type: string
+    - description: Whether the incremental restore has fallen back to full restore
+      jsonPath: .status.fallbackFull
+      name: Fallback Full
+      priority: 10
+      type: boolean
     - description: Time duration since this DataDownload was started
       jsonPath: .status.startTimestamp
       name: Started
