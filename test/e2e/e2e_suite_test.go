@@ -21,6 +21,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"os"
 	"slices"
 	"strings"
 	"testing"
@@ -377,6 +378,20 @@ func init() {
 		"",
 		"comma-separated list of key=value annotations to add to Velero service account",
 	)
+	flag.StringVar(
+		&test.StorageClassFile,
+		"storage-class-file",
+		"",
+		"StorageClass manifest the tests provision volumes with. Defaults to the provider's file under testdata/storage-class. Optional.",
+	)
+	flag.Func(
+		"storage-class-file-2",
+		"StorageClass manifest for the second class, used by the cases that map between two. Defaults to the provider's file; empty runs without a second StorageClass and skips those cases. Optional.",
+		func(value string) error {
+			test.StorageClassFile2, test.StorageClassFile2Set = value, true
+			return nil
+		},
+	)
 }
 
 // Add label [SkipVanillaZfs]:
@@ -523,6 +538,11 @@ var _ = Describe(
 	Label("ResourceFiltering", "ResourcePolicies", "FSBackup"),
 	ResourcePoliciesTest,
 )
+var _ = Describe(
+	"Velero test on namespace selection by label via resource policies",
+	Label("ResourceFiltering", "ResourcePolicies"),
+	NamespaceLabelSelectorTest,
+)
 
 // backup VolumeInfo test
 var _ = Describe(
@@ -544,6 +564,11 @@ var _ = Describe(
 	"",
 	Label("BackupVolumeInfo", "CSISnapshot"),
 	CSISnapshotVolumeInfoTest,
+)
+var _ = Describe(
+	"",
+	Label("BackupVolumeInfo", "CSIVolumeGroupSnapshot"),
+	CSIVolumeGroupSnapshotVolumeInfoTest,
 )
 var _ = Describe(
 	"",
@@ -784,6 +809,16 @@ func TestE2e(t *testing.T) {
 	testSuitePassed = RunSpecs(t, "E2e Suite")
 }
 
+// volumeGroupSnapshotClassFile returns the VolumeGroupSnapshotClass test data
+// for the provider under test, or the empty string when it has none.
+func volumeGroupSnapshotClassFile() string {
+	path := fmt.Sprintf("../testdata/volume-group-snapshot-class/%s.yaml", test.VeleroCfg.CloudProvider)
+	if _, err := os.Stat(path); err != nil {
+		return ""
+	}
+	return path
+}
+
 var _ = BeforeSuite(func() {
 	By("Install StorageClass for E2E.")
 	Expect(veleroutil.InstallStorageClasses(test.VeleroCfg.CloudProvider)).To(Succeed())
@@ -797,6 +832,13 @@ var _ = BeforeSuite(func() {
 				fmt.Sprintf("../testdata/volume-snapshot-class/%s.yaml", test.VeleroCfg.CloudProvider),
 			),
 		).To(Succeed())
+
+		// Only some providers have a VolumeGroupSnapshotClass to install, so
+		// the VolumeGroupSnapshot cases only run where the test data exists.
+		if path := volumeGroupSnapshotClassFile(); path != "" {
+			By("Install VolumeGroupSnapshotClass for E2E.")
+			Expect(k8s.KubectlApplyByFile(context.Background(), path)).To(Succeed())
+		}
 	}
 
 	By("Install PriorityClasses for E2E.")
@@ -830,7 +872,7 @@ var _ = AfterSuite(func() {
 		),
 	).To(Succeed())
 
-	By("Delete PriorityClasses created by E2E")
+	By(fmt.Sprintf("Delete StorageClass %s created by E2E", test.StorageClassName2))
 	Expect(
 		k8s.DeleteStorageClass(
 			ctx,
@@ -848,8 +890,14 @@ var _ = AfterSuite(func() {
 				fmt.Sprintf("../testdata/volume-snapshot-class/%s.yaml", test.VeleroCfg.CloudProvider),
 			),
 		).To(Succeed())
+
+		if path := volumeGroupSnapshotClassFile(); path != "" {
+			By("Delete VolumeGroupSnapshotClass created by E2E")
+			Expect(k8s.KubectlDeleteByFile(ctx, path)).To(Succeed())
+		}
 	}
 
+	By("Delete PriorityClasses created by E2E")
 	Expect(veleroutil.DeletePriorityClasses(
 		ctx,
 		test.VeleroCfg.ClientToInstallVelero.Kubebuilder,

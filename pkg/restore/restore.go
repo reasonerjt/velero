@@ -1962,11 +1962,31 @@ func (ctx *restoreContext) restoreItem(obj *unstructured.Unstructured, groupReso
 					err := errors.Errorf("in-place restore pre-flight check failed, skipping volume data restore: pod %s already exists and is still using the backed-up volumes: delete the pod and its owning workload and retry", kube.NamespaceAndName(obj))
 					restoreLogger.Error(err.Error())
 					errs.Add(namespace, err)
+					return warnings, errs, itemExists
 				} else {
 					err := errors.Errorf("skipping volume data restore: pod %s already exists, its PodVolumeBackups will not be restored", kube.NamespaceAndName(obj))
 					restoreLogger.Warn(err.Error())
 					warnings.Add(namespace, err)
 				}
+			}
+		}
+
+		// Snapshot-based volume data is never restored into an existing volume:
+		// the existing PVC (CSI snapshot) or PV (native snapshot) is left untouched.
+		// Warn so the user knows the volume data was not restored rather than assuming it was.
+		if newGR == kuberesource.PersistentVolumeClaims {
+			if info, ok := backupVolumeInfoForPVC(ctx.backupVolumeInfoMap, originalNamespace, obj.GetName()); ok &&
+				info.BackupMethod == volume.CSISnapshot {
+				err := errors.Errorf("skipping volume data restore: PVC %s already exists, its backed-up volume data will not be restored to it", kube.NamespaceAndName(obj))
+				restoreLogger.Warn(err.Error())
+				warnings.Add(namespace, err)
+			}
+		}
+		if newGR == kuberesource.PersistentVolumes {
+			if info, ok := ctx.backupVolumeInfoMap[backupResourceName]; ok && info.BackupMethod == volume.NativeSnapshot {
+				err := errors.Errorf("skipping volume data restore: PV %s already exists, its backed-up volume data will not be restored to it", obj.GetName())
+				restoreLogger.Warn(err.Error())
+				warnings.Add(namespace, err)
 			}
 		}
 
@@ -2304,6 +2324,17 @@ func remapClaimRefNS(ctx *restoreContext, obj *unstructured.Unstructured) (bool,
 	}
 	ctx.log.Debug("Persistent volume's namespace was updated")
 	return true, nil
+}
+
+// backupVolumeInfoForPVC returns the backup volume info of the PV the given
+// source-namespace PVC was bound to at backup time.
+func backupVolumeInfoForPVC(infos map[string]volume.BackupVolumeInfo, pvcNamespace, pvcName string) (volume.BackupVolumeInfo, bool) {
+	for _, info := range infos {
+		if info.PVCNamespace == pvcNamespace && info.PVCName == pvcName {
+			return info, true
+		}
+	}
+	return volume.BackupVolumeInfo{}, false
 }
 
 // restorePodVolumeBackups restores the PodVolumeBackups for the given restored pod

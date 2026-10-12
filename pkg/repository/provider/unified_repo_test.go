@@ -938,7 +938,7 @@ func TestForget(t *testing.T) {
 			}
 
 			if tc.backupRepo != nil {
-				backupRepo.On("DeleteManifest", mock.Anything, mock.Anything).Return(tc.retFuncDelete)
+				backupRepo.On("DeleteSnapshot", mock.Anything, mock.Anything).Return(tc.retFuncDelete)
 				backupRepo.On("Flush", mock.Anything).Return(tc.retFuncFlush)
 				backupRepo.On("Close", mock.Anything).Return(nil)
 			}
@@ -1124,7 +1124,7 @@ func TestBatchForget(t *testing.T) {
 			}
 
 			if tc.backupRepo != nil {
-				backupRepo.On("DeleteManifest", mock.Anything, mock.Anything).Return(tc.retFuncDelete)
+				backupRepo.On("DeleteSnapshot", mock.Anything, mock.Anything).Return(tc.retFuncDelete)
 				backupRepo.On("Flush", mock.Anything).Return(tc.retFuncFlush)
 				backupRepo.On("Close", mock.Anything).Return(nil)
 			}
