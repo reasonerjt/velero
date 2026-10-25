@@ -31,7 +31,9 @@ import (
 
 // blkZeroOutIoctl is the BLKZEROOUT request number, _IO(0x12, 127). The value is
 // arch dependent (e.g. 0x127f on amd64/arm64, 0x2000127f on ppc64le), so take it
-// from x/sys/unix rather than hard coding it.
+// from x/sys/unix rather than hard coding it. A hand written literal was once
+// wrong (0x127b is BLKPBSZGET), which made the ioctl succeed without zeroing
+// anything.
 const blkZeroOutIoctl = unix.BLKZEROOUT
 
 var lstatFunc = os.Lstat
