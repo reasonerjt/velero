@@ -1795,6 +1795,7 @@ func TestDeleteSnapshot(t *testing.T) {
 			kr := &kopiaRepository{
 				rawRepo:   rawRepo,
 				rawWriter: rawWriter,
+				logger:    velerotest.NewLogger(),
 			}
 
 			err := kr.DeleteSnapshot(t.Context(), tc.snapshotID)
