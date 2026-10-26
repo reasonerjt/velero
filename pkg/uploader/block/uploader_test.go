@@ -537,6 +537,36 @@ func TestFlushZeroBlocks(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, make([]byte, 2048), data)
 	})
+
+	t.Run("fallback zeroes only the requested range of a non-zero file", func(t *testing.T) {
+		const (
+			size  = 4096
+			start = 1024
+			// not a multiple of the zero block size, so the last write is partial
+			length = 2500
+		)
+
+		f, err := os.CreateTemp(t.TempDir(), "zerotest-*")
+		require.NoError(t, err)
+		defer f.Close()
+
+		_, err = f.Write(bytes.Repeat([]byte{0xab}, size))
+		require.NoError(t, err)
+
+		log := logrus.New()
+		log.Out = io.Discard
+
+		// the ioctl fails on a regular file, so the range must be zeroed by the write fallback
+		require.NoError(t, flushZeroBlocks(f, start, length, make([]byte, 1024), f.Name(), log))
+
+		data, err := os.ReadFile(f.Name())
+		require.NoError(t, err)
+		require.Len(t, data, size)
+
+		assert.Equal(t, bytes.Repeat([]byte{0xab}, start), data[:start], "data before the range is changed")
+		assert.Equal(t, make([]byte, length), data[start:start+length], "range is not zeroed")
+		assert.Equal(t, bytes.Repeat([]byte{0xab}, size-start-length), data[start+length:], "data after the range is changed")
+	})
 }
 
 type errReader struct {
