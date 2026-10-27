@@ -21,6 +21,7 @@ import (
 	"context"
 	"io"
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -774,4 +775,47 @@ func TestBlockUploaderRestore(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "dest dev(/dev/small) size is too small")
 	})
+}
+
+func TestBlockUploadConcurrency(t *testing.T) {
+	previous := runtime.GOMAXPROCS(2)
+	t.Cleanup(func() { runtime.GOMAXPROCS(previous) })
+	for _, tc := range []struct {
+		name    string
+		config  map[string]string
+		want    int
+		invalid bool
+	}{
+		{name: "nil config", want: 2},
+		{name: "empty config", config: map[string]string{}, want: 2},
+		{name: "unrelated option", config: map[string]string{"ParallelFilesUpload": "9"}, want: 2},
+		{name: "zero", config: map[string]string{"ParallelBlocksUpload": "0"}, want: 2},
+		{name: "negative", config: map[string]string{"ParallelBlocksUpload": "-1"}, want: 2},
+		{name: "explicit one", config: map[string]string{"ParallelBlocksUpload": "1"}, want: 1},
+		{name: "explicit above GOMAXPROCS", config: map[string]string{"ParallelBlocksUpload": "9"}, want: 9},
+		{name: "invalid", config: map[string]string{"ParallelBlocksUpload": "bad"}, invalid: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rep := udmrepomocks.NewBackupRepo(t)
+			rep.On("Time").Return(time.Now()).Once()
+			bitmap := cbtmocks.NewIterator(t)
+			bitmap.On("Errors").Return(nil).Once()
+			stop := errors.New("stop before writing data")
+			if !tc.invalid {
+				rep.On("NewObjectWriter", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+					opt := args.Get(1).(udmrepo.ObjectWriteOptions)
+					assert.Equal(t, tc.want, opt.AsyncWrites)
+					assert.Equal(t, udmrepo.ObjectDataAccessModeBlock, opt.AccessMode)
+				}).Return(nil, stop).Once()
+			}
+			up := NewUploader(t.Context(), rep, nil, logrus.New())
+			_, _, err := up.Backup(sourceInfo{}, "", bitmap, tc.config)
+			if tc.invalid {
+				require.ErrorContains(t, err, "failed to get uploader config")
+				rep.AssertNotCalled(t, "NewObjectWriter", mock.Anything, mock.Anything)
+			} else {
+				require.ErrorIs(t, err, stop)
+			}
+		})
+	}
 }
