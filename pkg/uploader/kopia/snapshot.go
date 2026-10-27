@@ -114,15 +114,17 @@ func setupPolicy(ctx context.Context, rep repo.RepositoryWriter, sourceInfo snap
 	// some internal operations from Kopia code retrieves policies from repo directly, so we need to persist the policy to repo
 	curPolicy := getDefaultPolicy()
 
+	maxParallelFileReads := runtime.GOMAXPROCS(0)
+
 	if len(uploaderCfg) > 0 {
-		parallelUpload, err := uploaderutil.GetParallelFilesUpload(uploaderCfg)
-		if err != nil {
+		if parallelUpload, err := uploaderutil.GetParallelFilesUpload(uploaderCfg); err != nil {
 			return nil, errors.Wrap(err, "failed to get uploader config")
-		}
-		if parallelUpload > 0 {
-			curPolicy.UploadPolicy.MaxParallelFileReads = newOptionalInt(parallelUpload)
+		} else if parallelUpload > 0 {
+			maxParallelFileReads = parallelUpload
 		}
 	}
+
+	curPolicy.UploadPolicy.MaxParallelFileReads = newOptionalInt(maxParallelFileReads)
 
 	if _, ok := uploaderCfg[UploaderConfigMultipartKey]; ok {
 		curPolicy.UploadPolicy.ParallelUploadAboveSize = newOptionalInt64(2 << 30)
