@@ -885,3 +885,61 @@ func TestFileUploadConcurrency(t *testing.T) {
 		})
 	}
 }
+
+func TestFileRestoreConcurrency(t *testing.T) {
+	// Deliberately differ from NumCPU so the previous default fails this test.
+	defaultParallel := 2
+	if runtime.NumCPU() == defaultParallel {
+		defaultParallel = 1
+	}
+	previous := runtime.GOMAXPROCS(defaultParallel)
+	originalFilesystemEntry, originalRestoreEntry := filesystemEntryFunc, restoreEntryFunc
+	t.Cleanup(func() {
+		runtime.GOMAXPROCS(previous)
+		filesystemEntryFunc, restoreEntryFunc = originalFilesystemEntry, originalRestoreEntry
+	})
+
+	for _, tc := range []struct {
+		name    string
+		config  map[string]string
+		want    int
+		invalid bool
+	}{
+		{name: "nil config", want: defaultParallel},
+		{name: "empty config", config: map[string]string{}, want: defaultParallel},
+		{name: "unrelated option", config: map[string]string{"WriteSparseFiles": "true"}, want: defaultParallel},
+		{name: "zero", config: map[string]string{"ParallelFilesDownload": "0"}, want: defaultParallel},
+		{name: "negative", config: map[string]string{"ParallelFilesDownload": "-1"}, want: defaultParallel},
+		{name: "explicit one", config: map[string]string{"ParallelFilesDownload": "1"}, want: 1},
+		{name: "explicit above GOMAXPROCS", config: map[string]string{"ParallelFilesDownload": "9"}, want: 9},
+		{name: "invalid", config: map[string]string{"ParallelFilesDownload": "bad"}, invalid: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rep := &repomocks.RepositoryWriter{}
+			rep.On("GetManifest", mock.Anything, mock.Anything, mock.Anything).Return(&manifest.EntryMetadata{
+				ID:     "test",
+				Labels: map[string]string{manifest.TypeLabelKey: snapshot.ManifestType},
+			}, nil).Once()
+			t.Cleanup(func() { rep.AssertExpectations(t) })
+			filesystemEntryFunc = func(ctx context.Context, rep repo.Repository, rootID string, consistentAttributes bool) (fs.Entry, error) {
+				return virtualfs.NewStaticDirectory("root", nil), nil
+			}
+			called := false
+			stop := errors.New("stop before restoring data")
+			restoreEntryFunc = func(ctx context.Context, rep repo.Repository, output restore.Output, rootEntry fs.Entry, options restore.Options) (restore.Stats, error) {
+				called = true
+				assert.Equal(t, tc.want, options.Parallel)
+				return restore.Stats{}, stop
+			}
+			_, _, _, err := Restore(t.Context(), rep, new(Progress), "test", t.TempDir(), false,
+				uploader.PersistentVolumeFilesystem, tc.config, logrus.New(), nil)
+			if tc.invalid {
+				require.ErrorContains(t, err, "failed to get parallel restore uploader config")
+				require.False(t, called)
+			} else {
+				require.ErrorIs(t, err, stop)
+				require.True(t, called)
+			}
+		})
+	}
+}

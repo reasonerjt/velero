@@ -439,7 +439,7 @@ func Restore(ctx context.Context, rep repo.RepositoryWriter, progress *Progress,
 		IgnorePermissionErrors: true,
 	}
 
-	restoreConcurrency := runtime.NumCPU()
+	restoreConcurrency := runtime.GOMAXPROCS(0)
 	deleteExtra := false
 	if len(uploaderCfg) > 0 {
 		writeSparseFiles, err := uploaderutil.GetWriteSparseFiles(uploaderCfg)
