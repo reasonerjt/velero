@@ -551,11 +551,14 @@ kubectl -n velero get datauploads -l velero.io/backup-name=YOUR_BACKUP_NAME -w
 kubectl -n velero get datadownloads -l velero.io/restore-name=YOUR_RESTORE_NAME -w
 ```
 
-For each individual volume, parallelism operates as follows:  
-- **File System Data Mover**: Files within the volume are processed in parallel. You can control concurrency using the `--parallel-files-upload` backup flag or `--parallel-files-download` restore flag. If omitted, Velero defaults to the number of CPU cores in the node hosting the data mover pod.  
-- **Block Data Mover**: Block data is processed sequentially with a dedicated reader and writer running asynchronously connected by an internal ring buffer. Sequential I/O provides optimal throughput for block devices. Concurrency across different volumes is handled via node-agent load concurrency.  
+For each individual volume, backup parallelism is controlled by the data mover:
 
-Notice that Golang 1.25 and later respects the CPU limit set to the pods to decide the physical threads provisioned to the pod processes (see [Container-aware GOMAXPROCS][22] for more details), so for Velero 1.18 (which consumes Golang 1.25) and later, if you set a CPU limit to the data mover pods, you may not get the expected performance (e.g., backup/restore throughput) with the default parallelism. The outcome may or may not be obvious varying on your volume data. If it is required, you could customize `--parallel-files-upload` or `--parallel-files-download` according to the CPU limit set to the data mover pods.  
+- **File System Data Mover**: `--parallel-files-upload` controls how many files are processed concurrently.
+- **Block Data Mover**: `--parallel-blocks-upload` controls how many block writes are processed concurrently.
+
+Both backup flags default to `runtime.GOMAXPROCS(0)` in the data mover process when omitted or set to `0`. The Go runtime can take the pod CPU limit into account when selecting this value (see [Container-aware GOMAXPROCS][22]). Explicit positive values override the default. Higher concurrency can improve throughput but increases buffered data and memory usage, particularly when backup storage is slow. These settings apply per volume and do not change node-agent load concurrency. See [backup upload concurrency](backup-reference.md#parallel-files-upload) for examples and Backup/Schedule configuration.  
+
+For restore, the file system data mover uses `--parallel-files-download`, which defaults to `runtime.GOMAXPROCS(0)` in the data mover process when omitted or set to `0`. An explicit positive value overrides this default. The upload flags do not affect restore.  
 
 ### Restart and resume
 When Velero server is restarted, if the resource backup/restore has completed, so the backup/restore has excceded `InProgress` status and is waiting for the completion of the data movements, Velero will recapture the status of the running data movements and resume the execution.  

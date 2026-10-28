@@ -341,10 +341,16 @@ velero restore create <RESTORE_NAME> --from-backup <BACKUP_NAME> --write-sparse-
 ``` 
 
 ## Parallel Files Download
-If using fs-restore or CSI snapshot data movements, it's possible to configure one option for parallel file downloads during the restore by Kopia uploader using the command below:
+
+`--parallel-files-download` controls how many files are processed concurrently within each volume restore using Kopia uploader. It applies to file-system restore and CSI snapshot data movement using the file system data mover. It does not control block data mover restores or the number of concurrent data mover pods.
+
+When omitted or set to `0`, it defaults to `runtime.GOMAXPROCS(0)` in the data mover process. The Go runtime can take the pod CPU limit into account when selecting this value. Set a positive integer to override the default:
+
 ```bash
-velero restore create <RESTORE_NAME> --from-backup <BACKUP_NAME> --parallel-files-download <NUM> --wait
-``` 
+velero restore create <RESTORE_NAME> --from-backup <BACKUP_NAME> --parallel-files-download=8 --wait
+```
+
+Higher concurrency can improve throughput when CPU, disk, and backup storage can keep up, but can also increase memory usage. A larger value does not always improve throughput.  
 
 ## Removing a Restore object
 

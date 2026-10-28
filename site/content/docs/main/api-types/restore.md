@@ -46,6 +46,7 @@ spec:
     # WriteSparseFiles is a flag to indicate whether write files sparsely or not
     writeSparseFiles: true
     # ParallelFilesDownload is the concurrency number setting for restore
+    # Omitted or 0 uses GOMAXPROCS in the data mover process.
     parallelFilesDownload: 10
     # DeleteExtraFiles specifies whether to delete the extra files in the target volume that do not exist in the backup. This setting is only applicable to File System restores (PodVolumeBackup or CSI File System Data Move) and has no effect on Block Data Move restores.
     deleteExtraFiles: false
