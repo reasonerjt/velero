@@ -44,18 +44,18 @@ import (
 	"k8s.io/utils/ptr"
 	crclient "sigs.k8s.io/controller-runtime/pkg/client"
 
-	"github.com/vmware-tanzu/velero/pkg/apis/velero/shared"
-	velerov1api "github.com/vmware-tanzu/velero/pkg/apis/velero/v1"
-	velerov2alpha1 "github.com/vmware-tanzu/velero/pkg/apis/velero/v2alpha1"
-	"github.com/vmware-tanzu/velero/pkg/builder"
-	factorymocks "github.com/vmware-tanzu/velero/pkg/client/mocks"
-	"github.com/vmware-tanzu/velero/pkg/kuberesource"
-	"github.com/vmware-tanzu/velero/pkg/label"
-	"github.com/vmware-tanzu/velero/pkg/plugin/velero"
-	velerotest "github.com/vmware-tanzu/velero/pkg/test"
-	uploaderUtil "github.com/vmware-tanzu/velero/pkg/uploader/util"
-	"github.com/vmware-tanzu/velero/pkg/util/boolptr"
-	csi "github.com/vmware-tanzu/velero/pkg/util/csi"
+	"github.com/velero-io/velero/pkg/apis/velero/shared"
+	velerov1api "github.com/velero-io/velero/pkg/apis/velero/v1"
+	velerov2alpha1 "github.com/velero-io/velero/pkg/apis/velero/v2alpha1"
+	"github.com/velero-io/velero/pkg/builder"
+	factorymocks "github.com/velero-io/velero/pkg/client/mocks"
+	"github.com/velero-io/velero/pkg/kuberesource"
+	"github.com/velero-io/velero/pkg/label"
+	"github.com/velero-io/velero/pkg/plugin/velero"
+	velerotest "github.com/velero-io/velero/pkg/test"
+	uploaderUtil "github.com/velero-io/velero/pkg/uploader/util"
+	"github.com/velero-io/velero/pkg/util/boolptr"
+	csi "github.com/velero-io/velero/pkg/util/csi"
 )
 
 const testDriver = "csi.example.com"
@@ -2331,7 +2331,7 @@ func TestNewDataUpload(t *testing.T) {
 			vsClassName:          ptr.To("test-vs-class"),
 			uploaderConfig:       &velerov1api.UploaderConfigForBackup{ParallelFilesUpload: 0},
 			expectedParentSnap:   "",
-			expectedDataMoverCfg: nil,
+			expectedDataMoverCfg: map[string]string{},
 		},
 		{
 			name:                      "Default backup type, uploader config with 0 parallel files",
@@ -2340,7 +2340,20 @@ func TestNewDataUpload(t *testing.T) {
 			uploaderConfig:            &velerov1api.UploaderConfigForBackup{ParallelFilesUpload: 0},
 			dataMoverFromVolumePolicy: "velero-block",
 			expectedParentSnap:        "",
-			expectedDataMoverCfg:      nil,
+			expectedDataMoverCfg:      map[string]string{},
+		},
+		{
+			name:                      "block concurrency",
+			vsClassName:               ptr.To("test-vs-class"),
+			uploaderConfig:            &velerov1api.UploaderConfigForBackup{ParallelBlocksUpload: 7},
+			dataMoverFromVolumePolicy: "velero-block",
+			expectedDataMoverCfg:      map[string]string{uploaderUtil.ParallelBlocksUpload: "7"},
+		},
+		{
+			name:                 "both uploader concurrency settings",
+			vsClassName:          ptr.To("test-vs-class"),
+			uploaderConfig:       &velerov1api.UploaderConfigForBackup{ParallelFilesUpload: 3, ParallelBlocksUpload: 7},
+			expectedDataMoverCfg: map[string]string{uploaderUtil.ParallelFilesUpload: "3", uploaderUtil.ParallelBlocksUpload: "7"},
 		},
 	}
 

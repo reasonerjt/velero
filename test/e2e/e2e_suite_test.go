@@ -30,30 +30,30 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/vmware-tanzu/velero/pkg/cmd/cli/install"
-	"github.com/vmware-tanzu/velero/test"
-	. "github.com/vmware-tanzu/velero/test/e2e/backup"
-	. "github.com/vmware-tanzu/velero/test/e2e/backups"
-	. "github.com/vmware-tanzu/velero/test/e2e/basic"
-	. "github.com/vmware-tanzu/velero/test/e2e/basic/api-group"
-	. "github.com/vmware-tanzu/velero/test/e2e/basic/backup-volume-info"
-	. "github.com/vmware-tanzu/velero/test/e2e/basic/resources-check"
-	. "github.com/vmware-tanzu/velero/test/e2e/bsl-mgmt"
-	. "github.com/vmware-tanzu/velero/test/e2e/migration"
-	. "github.com/vmware-tanzu/velero/test/e2e/nodeagentconfig"
-	. "github.com/vmware-tanzu/velero/test/e2e/parallelfilesdownload"
-	. "github.com/vmware-tanzu/velero/test/e2e/parallelfilesupload"
-	. "github.com/vmware-tanzu/velero/test/e2e/privilegesmgmt"
-	. "github.com/vmware-tanzu/velero/test/e2e/pv-backup"
-	. "github.com/vmware-tanzu/velero/test/e2e/repomaintenance"
-	. "github.com/vmware-tanzu/velero/test/e2e/resource-filtering"
-	. "github.com/vmware-tanzu/velero/test/e2e/resourcemodifiers"
-	. "github.com/vmware-tanzu/velero/test/e2e/resourcepolicies"
-	. "github.com/vmware-tanzu/velero/test/e2e/scale"
-	. "github.com/vmware-tanzu/velero/test/e2e/schedule"
-	. "github.com/vmware-tanzu/velero/test/e2e/upgrade"
-	"github.com/vmware-tanzu/velero/test/util/k8s"
-	veleroutil "github.com/vmware-tanzu/velero/test/util/velero"
+	"github.com/velero-io/velero/pkg/cmd/cli/install"
+	"github.com/velero-io/velero/test"
+	. "github.com/velero-io/velero/test/e2e/backup"
+	. "github.com/velero-io/velero/test/e2e/backups"
+	. "github.com/velero-io/velero/test/e2e/basic"
+	. "github.com/velero-io/velero/test/e2e/basic/api-group"
+	. "github.com/velero-io/velero/test/e2e/basic/backup-volume-info"
+	. "github.com/velero-io/velero/test/e2e/basic/resources-check"
+	. "github.com/velero-io/velero/test/e2e/bsl-mgmt"
+	. "github.com/velero-io/velero/test/e2e/migration"
+	. "github.com/velero-io/velero/test/e2e/nodeagentconfig"
+	. "github.com/velero-io/velero/test/e2e/parallelfilesdownload"
+	. "github.com/velero-io/velero/test/e2e/parallelfilesupload"
+	. "github.com/velero-io/velero/test/e2e/privilegesmgmt"
+	. "github.com/velero-io/velero/test/e2e/pv-backup"
+	. "github.com/velero-io/velero/test/e2e/repomaintenance"
+	. "github.com/velero-io/velero/test/e2e/resource-filtering"
+	. "github.com/velero-io/velero/test/e2e/resourcemodifiers"
+	. "github.com/velero-io/velero/test/e2e/resourcepolicies"
+	. "github.com/velero-io/velero/test/e2e/scale"
+	. "github.com/velero-io/velero/test/e2e/schedule"
+	. "github.com/velero-io/velero/test/e2e/upgrade"
+	"github.com/velero-io/velero/test/util/k8s"
+	veleroutil "github.com/velero-io/velero/test/util/velero"
 )
 
 func init() {
@@ -403,12 +403,12 @@ func init() {
 
 var _ = Describe(
 	"Velero tests with various CRD API group versions",
-	Label("APIGroup", "APIVersion", "SKIP_KIND", "LongTime"),
+	Label("APIGroup", "APIVersion", "LongTime"),
 	APIGroupVersionsTest,
 )
 var _ = Describe(
 	"CRD of apiextensions v1beta1 should be B/R successfully from cluster(k8s version < 1.22) to cluster(k8s version >= 1.22)",
-	Label("APIGroup", "APIExtensions", "SKIP_KIND"),
+	Label("APIGroup", "APIExtensions"),
 	APIExtensionsVersionsTest,
 )
 
@@ -615,7 +615,7 @@ var _ = Describe(
 )
 var _ = Describe(
 	"Schedule controller wouldn't create a new backup when it still has pending or InProgress backup",
-	Label("Schedule", "InProgress", "SKIP_KIND", "LongTime"),
+	Label("Schedule", "InProgress", "LongTime"),
 	ScheduleInProgressTest,
 )
 
@@ -823,7 +823,7 @@ var _ = BeforeSuite(func() {
 	By("Install StorageClass for E2E.")
 	Expect(veleroutil.InstallStorageClasses(test.VeleroCfg.CloudProvider)).To(Succeed())
 
-	if strings.EqualFold(test.VeleroCfg.Features, test.FeatureCSI) &&
+	if test.FeatureEnabled(test.VeleroCfg.Features, test.FeatureCSI) &&
 		test.VeleroCfg.UseVolumeSnapshots {
 		By("Install VolumeSnapshotClass for E2E.")
 		Expect(
@@ -881,7 +881,7 @@ var _ = AfterSuite(func() {
 		),
 	).To(Succeed())
 
-	if strings.EqualFold(test.VeleroCfg.Features, test.FeatureCSI) &&
+	if test.FeatureEnabled(test.VeleroCfg.Features, test.FeatureCSI) &&
 		test.VeleroCfg.UseVolumeSnapshots {
 		By("Delete VolumeSnapshotClass created by E2E")
 		Expect(
