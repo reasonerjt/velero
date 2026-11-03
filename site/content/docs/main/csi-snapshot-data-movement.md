@@ -113,6 +113,12 @@ Even in environments where CSI Changed Block Tracking (CBT) is unavailable (e.g.
     - Linux cluster nodes: Block data mover pods mount raw block devices. In heterogeneous clusters with both Linux and Windows nodes, block data mover pods must run on Linux nodes. (Windows workloads backed by block storage can still be protected and restored from Linux nodes).
     - CBT Service Account (if required): If the CSI SnapshotMetadataService requires authentication via a specific ServiceAccount, configure `csiSnapshotMetadataServiceConfigs` in the `node-agent-config` ConfigMap.
 
+### VolumeSnapshotClass
+
+Use a `VolumeSnapshotClass` with `deletionPolicy: Delete` for Velero built-in data movers (`velero-fs` and `velero-block`). After successful data movement, Velero deletes the underlying snapshot regardless of the SnapshotClass deletion policy. Setting `deletionPolicy: Retain` does not preserve the snapshot after a successful backup.  
+
+Velero first creates a `VolumeSnapshot` in the workload namespace, then creates a static `VolumeSnapshot` and `VolumeSnapshotContent` in the Velero namespace referencing the same underlying snapshot.  
+If you use `deletionPolicy: Retain` and the operation fails or is canceled before the handoff completes, the source `VolumeSnapshotContent` and underlying snapshot may remain. These resources require manual cleanup.  
 
 ### Install Velero Node Agent
 
@@ -556,7 +562,7 @@ For each individual volume, backup parallelism is controlled by the data mover:
 - **File System Data Mover**: `--parallel-files-upload` controls how many files are processed concurrently.
 - **Block Data Mover**: `--parallel-blocks-upload` controls how many block writes are processed concurrently.
 
-Both backup flags default to `runtime.GOMAXPROCS(0)` in the data mover process when omitted or set to `0`. The Go runtime can take the pod CPU limit into account when selecting this value (see [Container-aware GOMAXPROCS][22]). Explicit positive values override the default. Higher concurrency can improve throughput but increases buffered data and memory usage, particularly when backup storage is slow. These settings apply per volume and do not change node-agent load concurrency. See [backup upload concurrency](backup-reference.md#parallel-files-upload) for examples and Backup/Schedule configuration.  
+Both backup flags default to `runtime.GOMAXPROCS(0)` in the data mover process when omitted or set to `0`. The Go runtime can take the pod CPU limit into account when selecting this value (see [Container-aware GOMAXPROCS][22]). Explicit positive values override the default. Higher concurrency can improve throughput but increases buffered data and memory usage, particularly when backup storage is slow. These settings apply per volume and do not change node-agent load concurrency. See [backup upload concurrency](backup-reference.md#parallel-files-upload) for examples and Backup/Schedule configuration, and [Memory usage and upload concurrency](data-movement-pod-resource-configuration.md#memory-usage-and-upload-concurrency) for tuning guidance.  
 
 For restore, the file system data mover uses `--parallel-files-download`, which defaults to `runtime.GOMAXPROCS(0)` in the data mover process when omitted or set to `0`. An explicit positive value overrides this default. The upload flags do not affect restore.  
 
